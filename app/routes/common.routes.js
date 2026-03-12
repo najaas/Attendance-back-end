@@ -11,6 +11,7 @@ router.get('/employee-attendance-history', auth, attendanceController.getEmploye
 router.get('/employee-attendance/:date', auth, attendanceController.getEmployeeAttendanceByDate);
 router.post('/employee-attendance', auth, attendanceController.logEmployeeAttendance);
 router.put('/employee-attendance', auth, attendanceController.updateEmployeeAttendance);
+router.patch('/admin/employee-attendance/break', auth, adminOnly, attendanceController.updateBreakMinutes);
 
 
 

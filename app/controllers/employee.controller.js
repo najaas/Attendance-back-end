@@ -17,7 +17,7 @@ export const getEmployees = async (req, res) => {
 
 export const addEmployee = async (req, res) => {
   try {
-    const { name, username, password, employeeCode } = req.body;
+    const { name, username, password, employeeCode, designation } = req.body;
     if (!name || !username || !password || !employeeCode) return res.status(400).json({ message: 'All fields required' });
 
     const cleanUsername = String(username).trim();
@@ -41,8 +41,29 @@ export const addEmployee = async (req, res) => {
       name: cleanName,
       username: cleanUsername,
       employeeCode: cleanEmployeeCode,
+      designation: String(designation || '').trim(),
     });
-    return res.json({ id: emp.id, name: emp.name, username: emp.username, employeeCode: emp.employeeCode });
+    return res.json({ id: emp.id, name: emp.name, username: emp.username, employeeCode: emp.employeeCode, designation: emp.designation });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+export const updateEmployee = async (req, res) => {
+  try {
+    const employeeId = Number(req.params.id);
+    const { designation, name } = req.body;
+    const emp = await Employee.findOne({ id: employeeId });
+    if (!emp) return res.status(404).json({ message: 'Not found' });
+
+    if (designation !== undefined) emp.designation = String(designation).trim();
+    if (name !== undefined) {
+      emp.name = String(name).trim();
+      await User.updateOne({ username: emp.username }, { name: emp.name });
+    }
+
+    await emp.save();
+    return res.json({ id: emp.id, name: emp.name, username: emp.username, employeeCode: emp.employeeCode, designation: emp.designation });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

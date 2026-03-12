@@ -6,6 +6,7 @@ const employeeSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     username: { type: String, required: true, unique: true, trim: true, index: true },
     employeeCode: { type: String, required: true, unique: true, trim: true, index: true },
+    designation: { type: String, default: '', trim: true },
   },
   { versionKey: false }
 );

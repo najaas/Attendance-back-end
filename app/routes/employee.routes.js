@@ -6,6 +6,7 @@ const router = express.Router();
 
 router.get('/', auth, adminOnly, employeeController.getEmployees);
 router.post('/', auth, adminOnly, employeeController.addEmployee);
+router.put('/:id', auth, adminOnly, employeeController.updateEmployee);
 router.delete('/:id', auth, adminOnly, employeeController.deleteEmployee);
 
 export default router;

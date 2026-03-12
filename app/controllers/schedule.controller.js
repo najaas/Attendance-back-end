@@ -34,6 +34,7 @@ export const addSchedule = async (req, res) => {
     const jobNumber = String(req.body?.jobNumber || '').trim();
     const projectName = String(req.body?.projectName || '').trim();
     const customerName = String(req.body?.customerName || '').trim();
+    const remarks = String(req.body?.remarks || '').trim();
     const assignMode = String(assignedTo || '').trim();
 
     if (!title?.trim() || !assignMode) return res.status(400).json({ message: 'Title and assignee required' });
@@ -60,12 +61,56 @@ export const addSchedule = async (req, res) => {
       jobNumber, projectName, customerName,
       taskDate: taskDate || getLocalDateString(),
       location, site: (site || 'All Sites').trim(), vehicle,
+      remarks,
       assignedToUsername: a.username, assignedToName: a.name,
-      assignedByUsername: req.user.username, status: 'pending'
+      assignedByUsername: req.user.username, status: 'pending', statusDate: taskDate || getLocalDateString()
     }));
 
     const created = await WorkSchedule.insertMany(docs);
     return res.json({ count: created.length, tasks: created.map(s => docToObject(s)) });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+export const updateSchedule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { description, site, vehicle, location, jobNumber, projectName, customerName, status, statusDate, remarks } = req.body;
+    const schedule = await WorkSchedule.findOne({ id: Number(id) });
+    if (!schedule) return res.status(404).json({ message: 'Schedule not found' });
+
+    if (description !== undefined) schedule.description = description;
+    if (site !== undefined) schedule.site = site;
+    if (vehicle !== undefined) schedule.vehicle = vehicle;
+    if (location !== undefined) schedule.location = location;
+    if (jobNumber !== undefined) schedule.jobNumber = jobNumber;
+    if (projectName !== undefined) schedule.projectName = projectName;
+    if (customerName !== undefined) schedule.customerName = customerName;
+    if (status !== undefined) {
+      if (schedule.status !== status && !statusDate) {
+        schedule.statusDate = getLocalDateString();
+      }
+      schedule.status = status;
+    }
+    if (statusDate) {
+      schedule.statusDate = statusDate;
+    }
+    if (remarks !== undefined) schedule.remarks = remarks;
+
+    await schedule.save();
+    return res.json(docToObject(schedule));
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+export const deleteSchedule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const schedule = await WorkSchedule.findOneAndDelete({ id: Number(id) });
+    if (!schedule) return res.status(404).json({ message: 'Schedule not found' });
+    return res.json({ message: 'Schedule deleted' });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

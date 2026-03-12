@@ -7,6 +7,7 @@ const employeeAttendanceSchema = new mongoose.Schema(
     employeeName: { type: String, required: true, trim: true },
     officeEntryTime: { type: String, required: true, trim: true },
     officeExitTime: { type: String, default: '', trim: true },
+    breakMinutes: { type: Number, default: 0 },
   },
   { strict: false, timestamps: true, versionKey: false }
 );
