@@ -39,47 +39,30 @@ export const updateAttendance = async (req, res) => {
   }
 };
 
-export const lookupScheduleByJobNumber = async (jobNumber) => {
+export const lookupScheduleByJobNumber = async (jobNumber, date) => {
   if (!jobNumber) return null;
-  const inputParts = jobNumber.split(',').map((j) => j.trim()).filter(Boolean);
-  let schedule = null;
-
-  for (const part of inputParts) {
-    schedule = await WorkSchedule.findOne({ jobNumber: part }).sort({ createdAt: -1 }).lean();
-    if (schedule) break;
-    schedule = await WorkSchedule.findOne({
-      jobNumber: { $regex: part, $options: 'i' },
-    }).sort({ createdAt: -1 }).lean();
-    if (schedule) break;
+  const query = { jobNumber: String(jobNumber).trim() };
+  if (date) query.date = date;
+  
+  // Try matching date first, then fall back to most recent
+  let match = await WorkSchedule.findOne(query).sort({ date: -1 }).lean();
+  if (!match && date) {
+    match = await WorkSchedule.findOne({ jobNumber: String(jobNumber).trim() }).sort({ date: -1 }).lean();
   }
-
-  if (!schedule) {
-    schedule = await WorkSchedule.findOne({ jobNumber }).sort({ createdAt: -1 }).lean();
-  }
-
-  if (!schedule) {
-    schedule = await WorkSchedule.findOne({
-      jobNumber: { $regex: jobNumber, $options: 'i' },
-    }).sort({ createdAt: -1 }).lean();
-  }
-
-  return schedule;
+  return match;
 };
 
 export const jobLookup = async (req, res) => {
   try {
-    const jobNumber = String(req.params.jobNumber || '').trim();
-    if (!jobNumber) return res.json(null);
-
-    const schedule = await lookupScheduleByJobNumber(jobNumber);
-    if (!schedule) return res.json(null);
-
+    const { jobNumber } = req.params;
+    const { date } = req.query; // Accept optional date
+    const schedule = await lookupScheduleByJobNumber(jobNumber, date);
+    if (!schedule) return res.status(404).json({ message: 'Job not found' });
     return res.json({
-      projectName: schedule.projectName || '',
-      customerName: schedule.customerName || '',
-      jobNumber: schedule.jobNumber || '',
-      site: schedule.site || '',
-      location: schedule.location || '',
+      projectName: schedule.projectName,
+      customerName: schedule.customerName,
+      location: schedule.siteLocationName,
+      vehicle: schedule.vehicle
     });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -93,36 +76,37 @@ export const enrichAttendanceWithSchedule = async (req, res) => {
 
     for (const record of records) {
       const updates = {};
+      
+      // 1. Check top-level jobNumber if it exists, fall back to site1JobNumber
+      const mainJob = String(record.jobNumber || record.site1JobNumber || '').trim();
+      if (mainJob) {
+        const schedule = await lookupScheduleByJobNumber(mainJob, record.date);
+        if (schedule) {
+          if (!record.projectName) updates.projectName = schedule.projectName || '';
+          if (!record.customerName) updates.customerName = schedule.customerName || '';
+          if (!record.vehicle) updates.vehicle = schedule.vehicle || '';
+        }
+      }
+
+      // 2. Check site-specific jobNumbers
       let i = 1;
-
-      while (record[`site${i}JobNumber`] !== undefined || record[`site${i}Location`] !== undefined) {
+      while (i <= 10) {
         const jobNum = String(record[`site${i}JobNumber`] || '').trim();
-        const alreadyHasProject = String(record[`site${i}ProjectName`] || '').trim();
-
-        if (jobNum && !alreadyHasProject) {
-          const parts = jobNum.split(',').map((j) => j.trim()).filter(Boolean);
-          let schedule = null;
-
-          for (const part of parts) {
-            schedule = await WorkSchedule.findOne({ jobNumber: part }).sort({ createdAt: -1 }).lean();
-            if (schedule) break;
-            schedule = await WorkSchedule.findOne({
-              jobNumber: { $regex: part, $options: 'i' },
-            }).sort({ createdAt: -1 }).lean();
-            if (schedule) break;
-          }
-
-          if (!schedule) {
-            schedule = await WorkSchedule.findOne({
-              jobNumber: { $regex: jobNum, $options: 'i' },
-            }).sort({ createdAt: -1 }).lean();
-          }
-
+        if (jobNum) {
+          const schedule = await lookupScheduleByJobNumber(jobNum, record.date);
           if (schedule) {
-            updates[`site${i}ProjectName`] = schedule.projectName || '';
-            updates[`site${i}CustomerName`] = schedule.customerName || '';
+            if (!record[`site${i}ProjectName`]) updates[`site${i}ProjectName`] = schedule.projectName || '';
+            if (!record[`site${i}CustomerName`]) updates[`site${i}CustomerName`] = schedule.customerName || '';
+            if (!record[`site${i}Vehicle`]) updates[`site${i}Vehicle`] = schedule.vehicle || '';
+            // For legacy top-level vehicle if missing
+            if (schedule.vehicle && !updates.vehicle && !record.vehicle) {
+              updates.vehicle = schedule.vehicle;
+            }
           }
         }
+        // Even if site<i>JobNumber is missing, we check if they have site<i>Location to continue
+        // safer to just loop fixed 10 times or check next
+        if (record[`site${i+1}JobNumber`] === undefined && record[`site${i+1}Location`] === undefined && i > 3) break;
         i++;
       }
 
@@ -154,15 +138,30 @@ export const logEmployeeAttendance = async (req, res) => {
     };
     Object.keys(rest).forEach((k) => { if (k.startsWith('site')) payload[k] = rest[k]; });
 
+    // Enrich top-level jobNumber (fallback to site1)
+    const effectiveJob = String(payload.jobNumber || payload.site1JobNumber || '').trim();
+    if (effectiveJob) {
+      const mainSchedule = await lookupScheduleByJobNumber(effectiveJob, payload.date);
+      if (mainSchedule) {
+        payload.projectName = mainSchedule.projectName || payload.projectName || '';
+        payload.customerName = mainSchedule.customerName || payload.customerName || '';
+        payload.vehicle = mainSchedule.vehicle || payload.vehicle || '';
+      }
+    }
+
     // Enrich missing fields dynamically
     let i = 1;
     while (payload[`site${i}JobNumber`] !== undefined || payload[`site${i}Location`] !== undefined) {
       const jobNum = String(payload[`site${i}JobNumber`] || '').trim();
       if (jobNum) {
-        const schedule = await lookupScheduleByJobNumber(jobNum);
+        const schedule = await lookupScheduleByJobNumber(jobNum, payload.date);
         if (schedule) {
           payload[`site${i}ProjectName`] = schedule.projectName || payload[`site${i}ProjectName`] || '';
           payload[`site${i}CustomerName`] = schedule.customerName || payload[`site${i}CustomerName`] || '';
+          payload[`site${i}Vehicle`] = schedule.vehicle || payload[`site${i}Vehicle`] || '';
+          if (schedule.vehicle && !payload.vehicle) {
+            payload.vehicle = schedule.vehicle;
+          }
         }
       }
       i++;
@@ -188,15 +187,16 @@ export const updateEmployeeAttendance = async (req, res) => {
     const tempPayload = {};
     Object.keys(rest).forEach((k) => { if (k.startsWith('site')) tempPayload[k] = rest[k]; });
 
-    // Enrich missing fields dynamically
+    // Enrich missing site details dynamically
     let i = 1;
     while (tempPayload[`site${i}JobNumber`] !== undefined || tempPayload[`site${i}Location`] !== undefined) {
       const jobNum = String(tempPayload[`site${i}JobNumber`] || '').trim();
       if (jobNum) {
-        const schedule = await lookupScheduleByJobNumber(jobNum);
+        const schedule = await lookupScheduleByJobNumber(jobNum, current.date);
         if (schedule) {
           tempPayload[`site${i}ProjectName`] = schedule.projectName || tempPayload[`site${i}ProjectName`] || '';
           tempPayload[`site${i}CustomerName`] = schedule.customerName || tempPayload[`site${i}CustomerName`] || '';
+          tempPayload[`site${i}Vehicle`] = schedule.vehicle || tempPayload[`site${i}Vehicle`] || '';
         }
       }
       i++;
@@ -204,8 +204,50 @@ export const updateEmployeeAttendance = async (req, res) => {
 
     Object.keys(tempPayload).forEach((k) => { current.set(k, tempPayload[k]); });
 
+    // Enrich top-level details (fallback to site1)
+    const effectiveJob = String(current.jobNumber || current.site1JobNumber || '').trim();
+    if (effectiveJob) {
+      const mainSchedule = await lookupScheduleByJobNumber(effectiveJob, current.date);
+      if (mainSchedule) {
+        if (!current.projectName) current.projectName = mainSchedule.projectName || '';
+        if (!current.customerName) current.customerName = mainSchedule.customerName || '';
+        if (!current.vehicle) current.vehicle = mainSchedule.vehicle || '';
+      }
+    }
+
     await current.save();
     return res.json(docToObject(current));
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+export const adminUpdateEmployeeAttendance = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payload = req.body;
+    const record = await EmployeeAttendance.findById(id);
+    if (!record) return res.status(404).json({ message: 'Record not found' });
+    
+    // Reset sites if provided in payload
+    if (Object.keys(payload).some(k => k.startsWith('site'))) {
+      const obj = record.toObject();
+      Object.keys(obj).forEach(k => { if (k.startsWith('site')) record.set(k, undefined); });
+    }
+
+    Object.assign(record, payload);
+    await record.save();
+    return res.json(docToObject(record));
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+export const deleteEmployeeAttendance = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await EmployeeAttendance.findByIdAndDelete(id);
+    return res.json({ message: 'Record deleted' });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

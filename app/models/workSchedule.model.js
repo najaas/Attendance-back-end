@@ -25,4 +25,4 @@ const workScheduleSchema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
-export default mongoose.model('WorkSchedule', workScheduleSchema);
+export default mongoose.model('WorkSchedule', workScheduleSchema, 'workschedules');

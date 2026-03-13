@@ -34,6 +34,6 @@ export const attendanceDocToRow = (doc) => {
 export const docToObject = (doc) => {
   const raw = doc?.toObject ? doc.toObject() : doc;
   if (!raw) return null;
-  const { _id, createdAt, updatedAt, __v, ...rest } = raw;
+  const { _id, __v, ...rest } = raw;
   return rest;
 };

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import WorkSchedule from '../models/workSchedule.model.js';
 import Employee from '../models/employee.model.js';
 import { getNextId, getLocalDateString, docToObject } from '../utils/helpers.js';
@@ -8,7 +9,9 @@ export const getSchedules = async (req, res) => {
     const requestedDate = rawDate || getLocalDateString();
     let query = {};
 
-    if (requestedDate === 'recent') {
+    if (requestedDate.toLowerCase() === 'all') {
+      query = {};
+    } else if (requestedDate === 'recent') {
       const today = new Date();
       const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
       const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
@@ -16,12 +19,32 @@ export const getSchedules = async (req, res) => {
     } else if (/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
       query = { taskDate: requestedDate };
     } else {
-      return res.status(400).json({ message: 'Invalid date' });
+      // default fallback
+      query = { taskDate: getLocalDateString() };
     }
 
     const schedules = await WorkSchedule.find(query).sort({ taskDate: 1, createdAt: -1 }).lean();
     return res.json(schedules.map(s => ({ ...docToObject(s), vehicle: String(s.vehicle || '').trim(), location: String(s.location || '').trim() })));
   } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+export const getAllSchedules = async (req, res) => {
+  try {
+    const db = mongoose.connection.db;
+    const collection = db.collection('workschedules');
+    const schedules = await collection.find({}).sort({ createdAt: -1 }).toArray();
+    
+    console.log('[Backend] Direct MongoDB find found', schedules.length, 'records');
+    
+    return res.json(schedules.map(s => {
+       const obj = { ...s };
+       delete obj._id;
+       return obj;
+    }));
+  } catch (err) {
+    console.error('[Backend] Error in getAllSchedules:', err);
     return res.status(500).json({ message: err.message });
   }
 };
