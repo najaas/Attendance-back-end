@@ -13,6 +13,8 @@ const workScheduleSchema = new mongoose.Schema(
     location: { type: String, default: '', trim: true },
     site: { type: String, default: 'All Sites', trim: true },
     vehicle: { type: String, default: '', trim: true },
+    officeTime: { type: String, default: '', trim: true },   // planned office reporting time (HH:MM)
+    siteTime: { type: String, default: '', trim: true },     // planned site arrival time (HH:MM)
     assignedToUsername: { type: String, required: true, trim: true, index: true },
     assignedToName: { type: String, required: true, trim: true },
     assignedByUsername: { type: String, required: true, trim: true },

@@ -54,6 +54,8 @@ export const addSchedule = async (req, res) => {
     const { title, description, taskDate, site, assignedTo, assignedToUsernames } = req.body;
     const location = String(req.body?.location || req.body?.taskLocation || '').trim();
     const vehicle = String(req.body?.vehicle || '').trim();
+    const officeTime = String(req.body?.officeTime || '').trim();
+    const siteTime = String(req.body?.siteTime || '').trim();
     const jobNumber = String(req.body?.jobNumber || '').trim();
     const projectName = String(req.body?.projectName || '').trim();
     const customerName = String(req.body?.customerName || '').trim();
@@ -84,6 +86,7 @@ export const addSchedule = async (req, res) => {
       jobNumber, projectName, customerName,
       taskDate: taskDate || getLocalDateString(),
       location, site: (site || 'All Sites').trim(), vehicle,
+      officeTime, siteTime,
       remarks,
       assignedToUsername: a.username, assignedToName: a.name,
       assignedByUsername: req.user.username, status: 'pending', statusDate: taskDate || getLocalDateString()
@@ -99,7 +102,7 @@ export const addSchedule = async (req, res) => {
 export const updateSchedule = async (req, res) => {
   try {
     const { id } = req.params;
-    const { description, site, vehicle, location, jobNumber, projectName, customerName, status, statusDate, remarks } = req.body;
+    const { description, site, vehicle, location, officeTime, siteTime, jobNumber, projectName, customerName, status, statusDate, remarks } = req.body;
     const schedule = await WorkSchedule.findOne({ id: Number(id) });
     if (!schedule) return res.status(404).json({ message: 'Schedule not found' });
 
@@ -107,6 +110,8 @@ export const updateSchedule = async (req, res) => {
     if (site !== undefined) schedule.site = site;
     if (vehicle !== undefined) schedule.vehicle = vehicle;
     if (location !== undefined) schedule.location = location;
+    if (officeTime !== undefined) schedule.officeTime = officeTime;
+    if (siteTime !== undefined) schedule.siteTime = siteTime;
     if (jobNumber !== undefined) schedule.jobNumber = jobNumber;
     if (projectName !== undefined) schedule.projectName = projectName;
     if (customerName !== undefined) schedule.customerName = customerName;
