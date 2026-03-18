@@ -18,7 +18,26 @@ const app = express();
 const PORT = Number(process.env.PORT || 5001);
 
 // Middlewares
-app.use(cors());
+const allowedOrigins = [
+  'https://attendance-front-end-jade.vercel.app',
+  'https://attendance-back-end.vercel.app',
+  'https://attendance-back-end.onrender.com',
+  'https://attendance-frontend.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:19006',
+];
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      // allow requests with no origin (mobile apps, curl)
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  })
+);
+app.options('*', cors());
 app.use(express.json());
 
 // Database Connection
