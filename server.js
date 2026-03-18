@@ -22,6 +22,7 @@ const allowedOrigins = [
   'https://attendance-front-end-jade.vercel.app',
   'https://attendance-back-end.vercel.app',
   'https://attendance-back-end.onrender.com',
+  'https://attendance-back-end.vercel.app',
   'https://attendance-frontend.vercel.app',
   'http://localhost:3000',
   'http://localhost:19006',
