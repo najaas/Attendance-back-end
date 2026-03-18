@@ -19,13 +19,10 @@ const PORT = Number(process.env.PORT || 5001);
 
 // Middlewares
 const allowedOrigins = [
-  'https://attendance-front-end-jade.vercel.app',
-  'https://attendance-back-end.vercel.app',
-  'https://attendance-back-end.onrender.com',
-  'https://attendance-back-end.vercel.app',
-  'https://attendance-frontend.vercel.app',
-  'http://localhost:3000',
-  'http://localhost:19006',
+  'https://attendance-front-end-jade.vercel.app', // web frontend (Vercel)
+  'https://attendance-back-end.onrender.com',     // backend (Render)
+  'http://localhost:3000',                        // local web dev
+  'http://localhost:19006',                       // Expo local dev
 ];
 app.use(
   cors({
