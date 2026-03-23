@@ -7,6 +7,7 @@ const envFile = path.resolve('.env');
 
 const origins = [
   'https://attendance-front-end.onrender.com',
+  'https://attendance-back-end.vercel.app',
   'http://localhost:3000',
   'http://localhost:19006',
   'http://localhost:8081',
