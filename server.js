@@ -18,12 +18,19 @@ const app = express();
 const PORT = Number(process.env.PORT || 5001);
 
 // Middlewares
+const parseOrigins = (value = '') =>
+  value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
 const allowedOrigins = [
-  'https://attendance-front-end-jade.vercel.app', // web frontend (Vercel)
-  'https://attendance-back-end.onrender.com',     // backend (Render)
-  'http://localhost:3000',                        // local web dev
-  'http://localhost:19006',                       // Expo local dev
-];
+  ...parseOrigins(process.env.CORS_ORIGINS), // e.g. https://your-frontend.onrender.com
+  process.env.FRONTEND_URL,                  // single origin convenience
+  'http://localhost:3000',                   // local web dev
+  'http://localhost:19006',                  // Expo local dev
+].filter(Boolean);
+
 app.use(
   cors({
     origin: (origin, cb) => {
