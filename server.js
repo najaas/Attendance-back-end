@@ -17,57 +17,80 @@ dotenv.config();
 const app = express();
 const PORT = Number(process.env.PORT || 5001);
 
-// Middlewares
+// ----------------------
+// ✅ CORS CONFIG START
+// ----------------------
+
+// convert comma-separated env to array
 const parseOrigins = (value = '') =>
   value
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
 
+// allowed origins
 const allowedOrigins = [
-  ...parseOrigins(process.env.CORS_ORIGINS), // e.g. https://your-frontend.onrender.com
-  process.env.FRONTEND_URL,                  // single origin convenience
-  'http://localhost:3000',                   // local web dev
-  'http://localhost:19006',                  // Expo local dev
-  'http://localhost:8081',                   // Expo web dev
+  ...parseOrigins(process.env.CORS_ORIGINS),
+  process.env.FRONTEND_URL,
+  'http://localhost:3000',
+  'http://localhost:19006',
+  'http://localhost:8081',
+  'http://localhost:8082',
 ].filter(Boolean);
 
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      // allow requests with no origin (mobile apps, curl)
-      if (!origin) return cb(null, true);
-      if (allowedOrigins.includes(origin)) return cb(null, true);
-      return cb(new Error('Not allowed by CORS'));
-    },
-    credentials: true,
-  })
-);
-app.options('*', cors());
+// debug log
+console.log("✅ Allowed Origins:", allowedOrigins);
+
+// cors options
+const corsOptions = {
+  origin: (origin, callback) => {
+    // allow requests without origin (mobile apps / Postman)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      console.log("❌ Blocked by CORS:", origin);
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+};
+
+// apply cors
+app.use(cors(corsOptions));
+
+// 🔥 VERY IMPORTANT: preflight
+app.options('*', cors(corsOptions));
+
+// ----------------------
+// ✅ CORS CONFIG END
+// ----------------------
+
 app.use(express.json());
 
 // Database Connection
 connectDB();
 
-// Modular Routes
-app.use('/api', userRoutes);           // /api/login, /api/register
-app.use('/api/students', studentRoutes);     // /api/students
-app.use('/api/employees', employeeRoutes);   // /api/employees
-app.use('/api/attendance', attendanceRoutes); // /api/attendance
-app.use('/api/tasks', taskRoutes);           // /api/tasks
-app.use('/api', scheduleRoutes);             // /api/schedule, /api/work-schedules
-app.use('/api', commonRoutes);               // /api/employee-attendance, /api/import-data
+// Routes
+app.use('/api', userRoutes);
+app.use('/api/students', studentRoutes);
+app.use('/api/employees', employeeRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api', scheduleRoutes);
+app.use('/api', commonRoutes);
 
-// Global Error Handler
+// Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ message: 'Internal Server Error' });
+  res.status(500).json({ message: err.message || 'Internal Server Error' });
 });
 
-// Only start the HTTP listener when running locally (not on Vercel serverless)
+// start server (Render/local)
 if (!process.env.VERCEL) {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`🚀 Server running on port ${PORT}`);
   });
 }
 
