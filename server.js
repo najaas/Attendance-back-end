@@ -29,6 +29,7 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,                  // single origin convenience
   'http://localhost:3000',                   // local web dev
   'http://localhost:19006',                  // Expo local dev
+  'http://localhost:8081',                   // Expo web dev
 ].filter(Boolean);
 
 app.use(
