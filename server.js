@@ -18,53 +18,15 @@ const app = express();
 const PORT = Number(process.env.PORT || 5001);
 
 // ----------------------
-// ✅ CORS CONFIG START
+// ✅ SIMPLE CORS (FIXED)
 // ----------------------
+app.use(cors({
+  origin: true,        // 🔥 allow all origins (Vercel + localhost)
+  credentials: true
+}));
 
-// convert comma-separated env to array
-const parseOrigins = (value = '') =>
-  value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
+app.options('*', cors()); // 🔥 handle preflight
 
-// allowed origins
-const allowedOrigins = [
-  ...parseOrigins(process.env.CORS_ORIGINS),
-  process.env.FRONTEND_URL,
-  'http://localhost:3000',
-  'http://localhost:19006',
-  'http://localhost:8081',
-  'http://localhost:8082',
-].filter(Boolean);
-
-// debug log
-console.log("✅ Allowed Origins:", allowedOrigins);
-
-// cors options
-const corsOptions = {
-  origin: (origin, callback) => {
-    // allow requests without origin (mobile apps / Postman)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    } else {
-      console.log("❌ Blocked by CORS:", origin);
-      return callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-};
-
-// apply cors
-app.use(cors(corsOptions));
-
-// 🔥 VERY IMPORTANT: preflight
-app.options('*', cors(corsOptions));
-
-// ----------------------
-// ✅ CORS CONFIG END
 // ----------------------
 
 app.use(express.json());
@@ -81,13 +43,18 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api', scheduleRoutes);
 app.use('/api', commonRoutes);
 
+// Test route (optional)
+app.get('/', (req, res) => {
+  res.send('API Running ✅');
+});
+
 // Error handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error("❌ ERROR:", err.message);
   res.status(500).json({ message: err.message || 'Internal Server Error' });
 });
 
-// start server (Render/local)
+// Start server (Render/local)
 if (!process.env.VERCEL) {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
