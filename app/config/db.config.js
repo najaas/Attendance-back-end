@@ -5,13 +5,16 @@ import Employee from '../models/employee.model.js';
 
 export const connectDB = async () => {
   const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/attendance_db';
+
   try {
-    await mongoose.connect(MONGODB_URI);
-    console.log('MongoDB Connected...');
+    await mongoose.connect(MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000, // 10s timeout
+    });
+    console.log('✅ MongoDB Connected...');
     await seedDefaultsIfNeeded();
     await backfillEmployeesFromUsersIfNeeded();
   } catch (err) {
-    console.error('MongoDB Connection Error:', err.message);
+    console.error('❌ MongoDB Connection Error:', err.message);
     process.exit(1);
   }
 };
