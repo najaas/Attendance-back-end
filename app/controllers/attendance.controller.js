@@ -7,7 +7,6 @@ function docToObject(doc) {
   if (!doc) return null;
   const obj = (doc.toObject ? doc.toObject() : doc);
   const rid = obj._id ? obj._id.toString() : (obj.id || null);
-  console.log('📄 docToObject - Original _id:', obj._id, 'Converted ID:', rid);
   return { ...obj, id: rid, _id: rid };
 }
 
@@ -45,9 +44,8 @@ export const logEmployeeAttendance = async (req, res) => {
     const data = req.body;
     if (!data.date || !data.officeEntryTime) return res.status(400).json({ message: 'Date and entry time required' });
     
-    // Remove the check for existing records to allow multiple entries per day
-    // const exists = await EmployeeAttendance.findOne({ date: data.date, employeeUsername: req.user.username }).lean();
-    // if (exists) return res.status(400).json({ message: 'Already recorded' });
+    const exists = await EmployeeAttendance.findOne({ date: data.date, employeeUsername: req.user.username }).lean();
+    if (exists) return res.status(400).json({ message: 'Already recorded' });
 
     // Explicitly build the payload to ensure all capture fields are included
     const payload = {
@@ -79,49 +77,7 @@ export const logEmployeeAttendance = async (req, res) => {
 export const updateEmployeeAttendance = async (req, res) => {
   try {
     const data = req.body;
-    
-    // If record ID is provided, update that specific record
-    if (data.id) {
-      const current = await EmployeeAttendance.findById(data.id);
-      if (!current) return res.status(404).json({ message: 'Record not found' });
-      
-      // Update standard fields
-      if (data.officeEntryTime !== undefined) current.officeEntryTime = data.officeEntryTime;
-      if (data.officeExitTime !== undefined) current.officeExitTime = data.officeExitTime;
-      if (data.jobNumber !== undefined) current.jobNumber = String(data.jobNumber).trim();
-      
-      if (data.locationLat || data.lat) current.locationLat = data.locationLat || data.lat;
-      if (data.locationLng || data.lng) current.locationLng = data.locationLng || data.lng;
-      if (data.locationString || data.location) current.locationString = data.locationString || data.location;
-
-      // Explicitly update all metadata fields
-      Object.keys(data).forEach(k => {
-        if (k.startsWith('office') || k.startsWith('site')) {
-          current.set(k, data[k]);
-        }
-      });
-
-      // Auto-enrich logic
-      const effectiveJob = String(current.jobNumber || current.site1JobNumber || '').trim();
-      if (effectiveJob) {
-        const schedule = await lookupScheduleByJobNumber(effectiveJob, current.date);
-        if (schedule) {
-          if (!current.projectName) current.projectName = schedule.projectName || '';
-          if (!current.customerName) current.customerName = schedule.customerName || '';
-          if (!current.vehicle) current.vehicle = schedule.vehicle || '';
-        }
-      }
-
-      await current.save();
-      return res.json(docToObject(current));
-    }
-    
-    // If no ID provided, find the most recent record for that date and user
-    const current = await EmployeeAttendance.findOne({ 
-      date: data.date, 
-      employeeUsername: req.user.username 
-    }).sort({ createdAt: -1 });
-    
+    const current = await EmployeeAttendance.findOne({ date: data.date, employeeUsername: req.user.username });
     if (!current) return res.status(404).json({ message: 'Record not found' });
 
     // Update standard fields
@@ -160,8 +116,8 @@ export const updateEmployeeAttendance = async (req, res) => {
 
 export const getEmployeeAttendanceByDate = async (req, res) => {
   try {
-    const records = await EmployeeAttendance.find({ date: req.params.date, employeeUsername: req.user.username }).sort({ createdAt: -1 });
-    return res.json(records.map(docToObject));
+    const record = await EmployeeAttendance.findOne({ date: req.params.date, employeeUsername: req.user.username });
+    return res.json(docToObject(record));
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
@@ -180,16 +136,9 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
 export const getAllEmployeeAttendance = async (req, res) => {
   try {
     const raw = await EmployeeAttendance.find().sort({ date: -1 }).limit(500).lean();
-    console.log('📋 getAllEmployeeAttendance - Raw records count:', raw.length);
-    console.log('📋 First raw record:', raw[0]);
-    
     const processed = raw.map(docToObject);
-    console.log('📋 Processed records count:', processed.length);
-    console.log('📋 First processed record:', processed[0]);
-    
     return res.json(processed);
   } catch (err) {
-    console.error('📋 getAllEmployeeAttendance error:', err);
     return res.status(500).json({ message: err.message });
   }
 };
@@ -260,47 +209,10 @@ export const adminUpdateAttendance = async (req, res) => {
 export const deleteEmployeeAttendance = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('🗑️ Backend delete request - ID:', id);
-    
-    let record = null;
-    
-    // Handle both temp- and Temp prefixed IDs
-    if (id.startsWith('temp-') || id.startsWith('Temp')) {
-      let parts;
-      if (id.startsWith('temp-')) {
-        parts = id.split('-');
-        parts.shift(); // Remove 'temp'
-      } else {
-        parts = ['Temp', ...id.slice(4).split('-')]; // Handle 'Temp' prefix
-      }
-      
-      if (parts.length >= 3) {
-        const employeeUsername = parts[0];
-        const date = parts[1];
-        const officeEntryTime = parts.slice(2).join('-'); // Re-join to handle time with colons
-        
-        console.log('🗑️ Looking for record with temp ID:', { employeeUsername, date, officeEntryTime });
-        record = await EmployeeAttendance.findOne({ 
-          employeeUsername,
-          date,
-          officeEntryTime
-        });
-      }
-    } else {
-      // If not a temp ID, try to find by MongoDB ID
-      record = await EmployeeAttendance.findById(id);
-    }
-    
-    console.log('🗑️ Found record:', record);
-    
+    const record = await EmployeeAttendance.findByIdAndDelete(id);
     if (!record) return res.status(404).json({ message: 'Record not found' });
-    
-    await EmployeeAttendance.findByIdAndDelete(record._id);
-    console.log('🗑️ Record deleted successfully');
-    
     return res.json({ message: 'Record deleted successfully' });
   } catch (err) {
-    console.error('🗑️ Delete error:', err);
     return res.status(500).json({ message: err.message });
   }
 };

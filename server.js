@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { connectDB } from './app/config/db.config.js';
 
-// Routes
+// Route Imports
 import userRoutes from './app/routes/user.routes.js';
 import studentRoutes from './app/routes/student.routes.js';
 import employeeRoutes from './app/routes/employee.routes.js';
@@ -18,22 +18,20 @@ const app = express();
 const PORT = Number(process.env.PORT || 5001);
 
 // ----------------------
-// ✅ CORS
+// ✅ SIMPLE CORS (FIXED)
 // ----------------------
-const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || [];
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) callback(null, true);
-    else callback(new Error('CORS Not Allowed'));
-  },
+  origin: true,        // 🔥 allow all origins (Vercel + localhost)
   credentials: true
 }));
-app.options('*', cors());
+
+app.options('*', cors()); // 🔥 handle preflight
 
 // ----------------------
+
 app.use(express.json());
 
-// Database connection
+// Database Connection
 connectDB();
 
 // Routes
@@ -45,18 +43,22 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api', scheduleRoutes);
 app.use('/api', commonRoutes);
 
-// Test
-app.get('/', (req, res) => res.send('API Running ✅'));
+// Test route (optional)
+app.get('/', (req, res) => {
+  res.send('API Running ✅');
+});
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error('❌ ERROR:', err.message);
+  console.error("❌ ERROR:", err.message);
   res.status(500).json({ message: err.message || 'Internal Server Error' });
 });
 
-// Start server
+// Start server (Render/local)
 if (!process.env.VERCEL) {
-  app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
 }
 
 export default app;

@@ -38,6 +38,6 @@ const employeeAttendanceSchema = new mongoose.Schema(
   { strict: false, timestamps: true, versionKey: false }
 );
 
-// Remove unique index to allow multiple attendance records per day
+employeeAttendanceSchema.index({ date: 1, employeeUsername: 1 }, { unique: true });
 
 export default mongoose.model('EmployeeAttendance', employeeAttendanceSchema);
