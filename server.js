@@ -1,11 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import compression from 'compression';
 import { connectDB } from './app/config/db.config.js';
 
 // Route Imports
 import userRoutes from './app/routes/user.routes.js';
-import studentRoutes from './app/routes/student.routes.js';
 import employeeRoutes from './app/routes/employee.routes.js';
 import taskRoutes from './app/routes/task.routes.js';
 import attendanceRoutes from './app/routes/attendance.routes.js';
@@ -15,6 +15,7 @@ import commonRoutes from './app/routes/common.routes.js';
 dotenv.config();
 
 const app = express();
+app.use(compression());
 const PORT = Number(process.env.PORT || 5001);
 
 // ----------------------
@@ -36,7 +37,6 @@ connectDB();
 
 // Routes
 app.use('/api', userRoutes);
-app.use('/api/students', studentRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/tasks', taskRoutes);

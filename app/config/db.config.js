@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 import User from '../models/user.model.js';
-import Student from '../models/student.model.js';
 import Employee from '../models/employee.model.js';
 
 export const connectDB = async () => {
@@ -22,16 +21,11 @@ async function seedDefaultsIfNeeded() {
 
   const defaultUsers = [
     { id: 1, username: 'admin', password: 'password', role: 'admin', name: 'Admin' },
-    { id: 2, username: 'najas', password: 'password', role: 'student', name: 'najas' },
+    { id: 2, username: 'operator', password: 'password', role: 'employee', name: 'Default Operator' },
   ];
 
-  const defaultStudents = defaultUsers
-    .filter((u) => u.role === 'student')
-    .map((u) => ({ id: u.id, name: u.name }));
-
   await User.insertMany(defaultUsers);
-  await Student.insertMany(defaultStudents);
-  console.log(`Seeded defaults: ${defaultUsers.length} users, ${defaultStudents.length} students`);
+  console.log(`Seeded defaults: ${defaultUsers.length} users`);
 }
 
 async function backfillEmployeesFromUsersIfNeeded() {
