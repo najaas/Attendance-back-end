@@ -19,12 +19,17 @@ export const getSchedules = async (req, res) => {
     } else if (/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
       query = { taskDate: requestedDate };
     } else {
-      // default fallback
       query = { taskDate: getLocalDateString() };
     }
 
     const schedules = await WorkSchedule.find(query).sort({ taskDate: 1, createdAt: -1 }).lean();
-    return res.json(schedules.map(s => ({ ...docToObject(s), vehicle: String(s.vehicle || '').trim(), location: String(s.location || '').trim() })));
+    return res.json(schedules.map(s => ({
+      ...docToObject(s),
+      vehicle: String(s.vehicle || '').trim(),
+      location: String(s.location || '').trim(),
+      customerContact: String(s.customerContact || '').trim(),
+      customerPerson: String(s.customerPerson || '').trim(),
+    })));
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
@@ -35,13 +40,11 @@ export const getAllSchedules = async (req, res) => {
     const db = mongoose.connection.db;
     const collection = db.collection('workschedules');
     const schedules = await collection.find({}).sort({ createdAt: -1 }).toArray();
-    
     console.log('[Backend] Direct MongoDB find found', schedules.length, 'records');
-    
     return res.json(schedules.map(s => {
-       const obj = { ...s };
-       delete obj._id;
-       return obj;
+      const obj = { ...s };
+      delete obj._id;
+      return obj;
     }));
   } catch (err) {
     console.error('[Backend] Error in getAllSchedules:', err);
@@ -59,6 +62,8 @@ export const addSchedule = async (req, res) => {
     const jobNumber = String(req.body?.jobNumber || '').trim();
     const projectName = String(req.body?.projectName || '').trim();
     const customerName = String(req.body?.customerName || '').trim();
+    const customerPerson = String(req.body?.customerPerson || '').trim();
+    const customerContact = String(req.body?.customerContact || '').trim();
     const remarks = String(req.body?.remarks || '').trim();
     const assignMode = String(assignedTo || '').trim();
 
@@ -83,7 +88,7 @@ export const addSchedule = async (req, res) => {
       id: firstId + idx,
       title: title.trim(),
       description: (description || '').trim(),
-      jobNumber, projectName, customerName,
+      jobNumber, projectName, customerName, customerPerson, customerContact,
       taskDate: taskDate || getLocalDateString(),
       location, site: (site || 'All Sites').trim(), vehicle,
       officeTime, siteTime,
@@ -102,7 +107,12 @@ export const addSchedule = async (req, res) => {
 export const updateSchedule = async (req, res) => {
   try {
     const { id } = req.params;
-    const { description, site, vehicle, location, officeTime, siteTime, jobNumber, projectName, customerName, status, statusDate, remarks } = req.body;
+    const {
+      description, site, vehicle, location, officeTime, siteTime,
+      jobNumber, projectName, customerName, customerPerson, customerContact,
+      status, statusDate, remarks
+    } = req.body;
+
     const schedule = await WorkSchedule.findOne({ id: Number(id) });
     if (!schedule) return res.status(404).json({ message: 'Schedule not found' });
 
@@ -115,15 +125,15 @@ export const updateSchedule = async (req, res) => {
     if (jobNumber !== undefined) schedule.jobNumber = jobNumber;
     if (projectName !== undefined) schedule.projectName = projectName;
     if (customerName !== undefined) schedule.customerName = customerName;
+    if (customerPerson !== undefined) schedule.customerPerson = customerPerson;
+    if (customerContact !== undefined) schedule.customerContact = customerContact;
     if (status !== undefined) {
       if (schedule.status !== status && !statusDate) {
         schedule.statusDate = getLocalDateString();
       }
       schedule.status = status;
     }
-    if (statusDate) {
-      schedule.statusDate = statusDate;
-    }
+    if (statusDate) schedule.statusDate = statusDate;
     if (remarks !== undefined) schedule.remarks = remarks;
 
     await schedule.save();
