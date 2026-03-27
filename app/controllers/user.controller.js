@@ -1,6 +1,5 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/user.model.js';
-import Student from '../models/student.model.js';
 import { getNextId } from '../utils/helpers.js';
 
 const SECRET_KEY = process.env.JWT_SECRET || 'your-secret-key';
@@ -39,50 +38,15 @@ export const register = async (req, res) => {
       id: nextId,
       username: cleanUsername,
       password: String(password),
-      role: 'student',
+      role: 'employee',
       name: cleanName,
     });
-    await Student.create({ id: nextId, name: cleanName });
 
     const token = jwt.sign(
       { id: newUser.id, username: newUser.username, role: newUser.role, name: newUser.name },
       SECRET_KEY
     );
     return res.json({ token, role: newUser.role });
-  } catch (err) {
-    return res.status(500).json({ message: err.message });
-  }
-};
-
-export const getStudents = async (req, res) => {
-  try {
-    const students = await Student.find().sort({ id: 1 }).select({ _id: 0 }).lean();
-    return res.json(students);
-  } catch (err) {
-    return res.status(500).json({ message: err.message });
-  }
-};
-
-export const addStudent = async (req, res) => {
-  try {
-    const { name } = req.body;
-    if (!name?.trim()) return res.status(400).json({ message: 'Name required' });
-    const student = await Student.create({
-      id: await getNextId(Student, 6),
-      name: name.trim(),
-    });
-    return res.json({ id: student.id, name: student.name });
-  } catch (err) {
-    return res.status(500).json({ message: err.message });
-  }
-};
-
-export const deleteStudent = async (req, res) => {
-  try {
-    const studentId = Number(req.params.id);
-    const deleted = await Student.findOneAndDelete({ id: studentId }).lean();
-    if (!deleted) return res.status(404).json({ message: 'Not found' });
-    return res.json({ message: 'Deleted' });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

@@ -2,7 +2,6 @@ import Employee from '../models/employee.model.js';
 import User from '../models/user.model.js';
 import Task from '../models/task.model.js';
 import { getNextId, parseCSV } from '../utils/helpers.js';
-import Student from '../models/student.model.js';
 import EmployeeAttendance from '../models/employeeAttendance.model.js';
 import WorkSchedule from '../models/workSchedule.model.js';
 
@@ -124,15 +123,7 @@ export const importData = async (req, res) => {
     if (rows.length === 0) return res.status(400).json({ message: 'No data found' });
 
     let count = 0;
-    if (type === 'students') {
-      for (const row of rows) {
-        const name = String(row.Name || row.name || '').trim();
-        if (name) {
-          await Student.updateOne({ name }, { $setOnInsert: { id: await getNextId(Student, 6) } }, { upsert: true });
-          count++;
-        }
-      }
-    } else if (type === 'employee-attendance') {
+    if (type === 'employee-attendance') {
       for (const row of rows) {
         const date = String(row.Date || row.date || '').trim();
         const empName = String(row['Employee Name'] || row.employeeName || '').trim();
