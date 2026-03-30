@@ -13,6 +13,7 @@ const workScheduleSchema = new mongoose.Schema(
     customerContact: { type: String, default: '', trim: true },
     taskDate: { type: String, required: true, index: true, default: () => getLocalDateString() },
     location: { type: String, default: '', trim: true },
+    site: { type: String, default: 'All Sites', trim: true },
     vehicle: { type: String, default: '', trim: true },
     officeTime: { type: String, default: '', trim: true },
     siteTime: { type: String, default: '', trim: true },
