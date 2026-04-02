@@ -123,6 +123,52 @@ export const deleteEmployee = async (req, res) => {
   }
 };
 
+export const registerPushToken = async (req, res) => {
+  try {
+    const username = String(req.user?.username || '').trim();
+    const expoPushToken = String(req.body?.expoPushToken || '').trim();
+    const platform = String(req.body?.platform || '').trim();
+
+    if (!username) return res.status(401).json({ message: 'Unauthorized' });
+    if (!expoPushToken) return res.status(400).json({ message: 'expoPushToken is required' });
+    if (!/^Expo(nent)?PushToken\[[A-Za-z0-9_-]+\]$/.test(expoPushToken)) {
+      return res.status(400).json({ message: 'Invalid Expo push token' });
+    }
+
+    const employee = await Employee.findOne({ username });
+    if (!employee) return res.status(404).json({ message: 'Employee not found for this user' });
+
+    const existing = Array.isArray(employee.pushTokens) ? employee.pushTokens : [];
+    const filtered = existing.filter((entry) => String(entry?.token || '').trim() !== expoPushToken);
+    filtered.push({ token: expoPushToken, platform, updatedAt: new Date() });
+
+    employee.pushTokens = filtered.slice(-5);
+    await employee.save();
+
+    return res.json({ message: 'Push token saved' });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+export const removePushToken = async (req, res) => {
+  try {
+    const username = String(req.user?.username || '').trim();
+    const expoPushToken = String(req.body?.expoPushToken || '').trim();
+    if (!username) return res.status(401).json({ message: 'Unauthorized' });
+    if (!expoPushToken) return res.status(400).json({ message: 'expoPushToken is required' });
+
+    await Employee.updateOne(
+      { username },
+      { $pull: { pushTokens: { token: expoPushToken } } }
+    );
+
+    return res.json({ message: 'Push token removed' });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
 export const importData = async (req, res) => {
   try {
     const { type, csvData } = req.body;

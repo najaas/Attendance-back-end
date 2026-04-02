@@ -8,6 +8,10 @@ const router = express.Router();
 // employee-attendance (standalone)
 router.patch('/admin/employee-attendance/break', auth, adminOnly, attendanceController.updateBreakMinutes);
 
+// mobile push notifications
+router.post('/mobile/push-token', auth, employeeController.registerPushToken);
+router.delete('/mobile/push-token', auth, employeeController.removePushToken);
+
 
 
 // import-data (standalone)

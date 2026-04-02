@@ -11,6 +11,13 @@ const employeeSchema = new mongoose.Schema(
     companyNumber: { type: String, default: '', trim: true },
     personalNumber: { type: String, default: '', trim: true },
     indiaNumber: { type: String, default: '', trim: true },
+    pushTokens: [
+      {
+        token: { type: String, trim: true },
+        platform: { type: String, trim: true, default: '' },
+        updatedAt: { type: Date, default: Date.now },
+      }
+    ],
   },
   { versionKey: false }
 );

@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import WorkSchedule from '../models/workSchedule.model.js';
 import Employee from '../models/employee.model.js';
 import { getNextId, getLocalDateString, docToObject } from '../utils/helpers.js';
+import { notifyScheduleAssigned } from '../utils/pushNotifications.js';
 
 export const getSchedules = async (req, res) => {
   try {
@@ -100,6 +101,8 @@ export const addSchedule = async (req, res) => {
     }));
 
     const created = await WorkSchedule.insertMany(docs);
+    notifyScheduleAssigned({ schedules: created.map((s) => docToObject(s)) })
+      .catch((err) => console.error('[push] schedule notify failed:', err.message));
     return res.json({ count: created.length, tasks: created.map(s => docToObject(s)) });
   } catch (err) {
     return res.status(500).json({ message: err.message });
