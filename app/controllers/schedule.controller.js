@@ -71,16 +71,16 @@ export const addSchedule = async (req, res) => {
 
     let assignees = [];
     if (assignMode === 'all') {
-      const employees = await Employee.find().sort({ id: 1 }).select({ username: 1, name: 1 }).lean();
-      assignees = employees.map(e => ({ username: e.username, name: e.name }));
+      const employees = await Employee.find().sort({ id: 1 }).select({ username: 1, name: 1, shortName: 1 }).lean();
+      assignees = employees.map(e => ({ username: e.username, name: e.name, shortName: e.shortName }));
     } else if (assignMode === 'multiple') {
       const usernames = Array.isArray(assignedToUsernames) ? assignedToUsernames : [];
-      const employees = await Employee.find({ username: { $in: usernames } }).select({ username: 1, name: 1 }).lean();
-      assignees = employees.map(e => ({ username: e.username, name: e.name }));
+      const employees = await Employee.find({ username: { $in: usernames } }).select({ username: 1, name: 1, shortName: 1 }).lean();
+      assignees = employees.map(e => ({ username: e.username, name: e.name, shortName: e.shortName }));
     } else {
-      const emp = await Employee.findOne({ username: assignMode }).select({ username: 1, name: 1 }).lean();
+      const emp = await Employee.findOne({ username: assignMode }).select({ username: 1, name: 1, shortName: 1 }).lean();
       if (!emp) return res.status(404).json({ message: 'Employee not found' });
-      assignees = [{ username: emp.username, name: emp.name }];
+      assignees = [{ username: emp.username, name: emp.name, shortName: emp.shortName }];
     }
 
     const firstId = await getNextId(WorkSchedule, 0);
@@ -93,7 +93,9 @@ export const addSchedule = async (req, res) => {
       location, site: (site || 'All Sites').trim(), vehicle,
       officeTime, siteTime,
       remarks,
-      assignedToUsername: a.username, assignedToName: a.name,
+      assignedToUsername: a.username, 
+      assignedToName: a.name,
+      assignedToShortName: a.shortName || '',
       assignedByUsername: req.user.username, status: 'pending', statusDate: taskDate || getLocalDateString()
     }));
 

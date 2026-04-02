@@ -27,6 +27,7 @@ export const getEmployees = async (req, res) => {
           _id: 0,
           id: 1,
           name: 1,
+          shortName: 1,
           username: 1,
           employeeCode: 1,
           designation: 1,
@@ -45,7 +46,7 @@ export const getEmployees = async (req, res) => {
 
 export const addEmployee = async (req, res) => {
   try {
-    const { name, username, password, employeeCode, designation, companyNumber, personalNumber, indiaNumber } = req.body;
+    const { name, shortName, username, password, employeeCode, designation, companyNumber, personalNumber, indiaNumber } = req.body;
     if (!name || !username || !password || !employeeCode) return res.status(400).json({ message: 'All fields required' });
 
     const cleanUsername = String(username).trim();
@@ -63,10 +64,12 @@ export const addEmployee = async (req, res) => {
       password: String(password),
       role: 'employee',
       name: cleanName,
+      shortName: String(shortName || '').trim(),
     });
     const emp = await Employee.create({
       id: await getNextId(Employee, 6),
       name: cleanName,
+      shortName: String(shortName || '').trim(),
       username: cleanUsername,
       employeeCode: cleanEmployeeCode,
       designation: String(designation || '').trim(),
@@ -74,7 +77,7 @@ export const addEmployee = async (req, res) => {
       personalNumber: String(personalNumber || '').trim(),
       indiaNumber: String(indiaNumber || '').trim(),
     });
-    return res.json({ id: emp.id, name: emp.name, username: emp.username, employeeCode: emp.employeeCode, designation: emp.designation, companyNumber: emp.companyNumber, personalNumber: emp.personalNumber, indiaNumber: emp.indiaNumber });
+    return res.json({ id: emp.id, name: emp.name, shortName: emp.shortName, username: emp.username, employeeCode: emp.employeeCode, designation: emp.designation, companyNumber: emp.companyNumber, personalNumber: emp.personalNumber, indiaNumber: emp.indiaNumber });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
@@ -83,7 +86,7 @@ export const addEmployee = async (req, res) => {
 export const updateEmployee = async (req, res) => {
   try {
     const employeeId = Number(req.params.id);
-    const { designation, name, companyNumber, personalNumber, indiaNumber } = req.body;
+    const { designation, name, shortName, companyNumber, personalNumber, indiaNumber } = req.body;
     const emp = await Employee.findOne({ id: employeeId });
     if (!emp) return res.status(404).json({ message: 'Not found' });
 
@@ -95,9 +98,13 @@ export const updateEmployee = async (req, res) => {
       emp.name = String(name).trim();
       await User.updateOne({ username: emp.username }, { name: emp.name });
     }
+    if (shortName !== undefined) {
+      emp.shortName = String(shortName).trim();
+      await User.updateOne({ username: emp.username }, { shortName: emp.shortName });
+    }
 
     await emp.save();
-    return res.json({ id: emp.id, name: emp.name, username: emp.username, employeeCode: emp.employeeCode, designation: emp.designation, companyNumber: emp.companyNumber, personalNumber: emp.personalNumber, indiaNumber: emp.indiaNumber });
+    return res.json({ id: emp.id, name: emp.name, shortName: emp.shortName, username: emp.username, employeeCode: emp.employeeCode, designation: emp.designation, companyNumber: emp.companyNumber, personalNumber: emp.personalNumber, indiaNumber: emp.indiaNumber });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
@@ -166,6 +173,7 @@ export const importData = async (req, res) => {
                     vehicle: String(row['Vehicle No.'] || '').trim(),
                     assignedToUsername: emp.username,
                     assignedToName: emp.name,
+                    assignedToShortName: emp.shortName || '',
                     assignedByUsername: req.user.username,
                     status: 'pending'
                 });
