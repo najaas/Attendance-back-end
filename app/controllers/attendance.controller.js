@@ -60,9 +60,8 @@ export const logEmployeeAttendance = async (req, res) => {
       locationString: data.locationString || data.location || '',
     };
 
-    // Safely copy all dynamic capture/site fields
     Object.keys(data).forEach(k => {
-      if (k.startsWith('office') || k.startsWith('site')) {
+      if (k.startsWith('office') || k.startsWith('site') || k.startsWith('s2_') || k.startsWith('s3_') || k.startsWith('s4_') || k.startsWith('s5_')) {
         payload[k] = data[k];
       }
     });
@@ -89,9 +88,9 @@ export const updateEmployeeAttendance = async (req, res) => {
     if (data.locationLng || data.lng) current.locationLng = data.locationLng || data.lng;
     if (data.locationString || data.location) current.locationString = data.locationString || data.location;
 
-    // Explicitly update all metadata fields
+    // Explicitly update all metadata fields including Rounds 2 & 3
     Object.keys(data).forEach(k => {
-      if (k.startsWith('office') || k.startsWith('site')) {
+      if (k.startsWith('office') || k.startsWith('site') || k.startsWith('s2_') || k.startsWith('s3_') || k.startsWith('s4_') || k.startsWith('s5_')) {
         current.set(k, data[k]);
       }
     });
@@ -145,8 +144,8 @@ export const getAllEmployeeAttendance = async (req, res) => {
 
 export const updateBreakMinutes = async (req, res) => {
   try {
-    const { id, breakMinutes } = req.body;
-    const record = await EmployeeAttendance.findByIdAndUpdate(id, { breakMinutes }, { new: true });
+    const { id, breakMinutes, field = 'breakMinutes' } = req.body;
+    const record = await EmployeeAttendance.findByIdAndUpdate(id, { [field]: breakMinutes }, { new: true });
     return res.json(docToObject(record));
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -202,6 +201,60 @@ export const adminUpdateAttendance = async (req, res) => {
     await record.save();
     return res.json(docToObject(record));
   } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+export const clearRound = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { roundType } = req.body; // 'R1', 'R2', 'R3', 'R4', 'R5'
+    console.log(`[ClearRound] Action for ${roundType} on record ${id}`);
+
+    const record = await EmployeeAttendance.findById(id);
+    if (!record) return res.status(404).json({ message: 'Record not found' });
+
+    const round = String(roundType || 'R1').toUpperCase();
+    const update = { $unset: {} };
+    
+    if (round === 'R1') {
+      const R1_FIELDS = ['officeEntryTime', 'officeExitTime', 'officeEntryLat', 'officeEntryLng', 'officeExitLat', 'officeExitLng', 'officeEntrySubmitTs', 'officeExitSubmitTs'];
+      for (let i = 1; i <= 6; i++) {
+        R1_FIELDS.push(`site${i}Entry`, `site${i}Exit`, `site${i}Location`, `site${i}JobNumber`, `site${i}ProjectName`, `site${i}CustomerName`, `site${i}Scope`, `site${i}EntrySubmitTs`, `site${i}ExitSubmitTs`, `site${i}Vehicle`);
+      }
+      R1_FIELDS.forEach(f => { update.$unset[f] = 1; });
+    } else {
+      // Map R2, R3, R4, R5 to s2_, s3_, s4_, s5_
+      const roundIdx = round.replace('R', '');
+      const prefix = `s${roundIdx}_`;
+      console.log(`[ClearRound] Using prefix ${prefix} for ${round}`);
+
+      const FIELDS = [`${prefix}officeEntryTime`, `${prefix}officeExitTime`, `${prefix}officeEntrySubmitTs`, `${prefix}officeExitSubmitTs`, `${prefix}vehicle` ];
+      for (let i = 1; i <= 6; i++) {
+        FIELDS.push(`${prefix}site${i}Entry`, `${prefix}site${i}Exit`, `${prefix}site${i}Location`, `${prefix}site${i}JobNumber`, `${prefix}site${i}ProjectName`, `${prefix}site${i}CustomerName`, `${prefix}site${i}Scope`, `${prefix}site${i}EntrySubmitTs`, `${prefix}site${i}ExitSubmitTs`);
+      }
+      FIELDS.forEach(f => { update.$unset[f] = 1; });
+    }
+
+    const updatedRecord = await EmployeeAttendance.findByIdAndUpdate(id, update, { new: true });
+    
+    // Check if there's ANYTHING left
+    const hasAnyKeys = Object.keys(updatedRecord.toObject()).some(k => {
+        if(['_id', 'id', 'employeeUsername', 'employeeName', 'date', 'createdAt', 'updatedAt', '__v'].includes(k)) return false;
+        const val = updatedRecord[k];
+        if (val === null || val === undefined || val === "") return false;
+        return true;
+    });
+
+    if(!hasAnyKeys) {
+        await EmployeeAttendance.findByIdAndDelete(id);
+        console.log(`[ClearRound] Final deletion of doc ${id} (no rounds left)`);
+        return res.json({ message: 'Round cleared and empty record removed' });
+    }
+
+    return res.json({ message: `${round} cleared successfully` });
+  } catch (err) {
+    console.error(`[ClearRound] Server Error:`, err);
     return res.status(500).json({ message: err.message });
   }
 };

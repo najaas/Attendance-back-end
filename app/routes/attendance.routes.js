@@ -8,6 +8,7 @@ const router = express.Router();
 router.get('/admin/employee-attendance', auth, adminOnly, attendanceController.getAllEmployeeAttendance);
 router.put('/admin/employee-attendance/:id', auth, adminOnly, attendanceController.adminUpdateAttendance);
 router.delete('/admin/employee-attendance/:id', auth, adminOnly, attendanceController.deleteEmployeeAttendance);
+router.post('/admin/clear-round/:id', auth, adminOnly, attendanceController.clearRound);
 router.get('/employee-attendance-history', auth, attendanceController.getEmployeeAttendanceHistory);
 router.get('/employee-attendance/:date', auth, attendanceController.getEmployeeAttendanceByDate);
 router.post('/employee-attendance', auth, attendanceController.logEmployeeAttendance);

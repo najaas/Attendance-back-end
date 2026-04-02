@@ -11,6 +11,7 @@ import taskRoutes from './app/routes/task.routes.js';
 import attendanceRoutes from './app/routes/attendance.routes.js';
 import scheduleRoutes from './app/routes/schedule.routes.js';
 import commonRoutes from './app/routes/common.routes.js';
+import foodAllowanceRoutes from './app/routes/foodAllowance.routes.js';
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api', scheduleRoutes);
 app.use('/api', commonRoutes);
+app.use('/api/food', foodAllowanceRoutes);
 
 // Test route (optional)
 app.get('/', (req, res) => {
