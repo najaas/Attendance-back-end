@@ -61,7 +61,7 @@ export const addEmployee = async (req, res) => {
       id: nextId,
       username: cleanUsername,
       password: String(password),
-      role: 'student',
+      role: 'employee',
       name: cleanName,
     });
     const emp = await Employee.create({
