@@ -11,6 +11,13 @@ const COST_B = 5;
 const COST_L = 12;
 const COST_D = 12;
 
+const toMinutes = (time) => {
+    if (!time || typeof time !== "string" || !time.includes(":")) return null;
+    const [h, m] = time.split(":").map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    return (h * 60) + m;
+};
+
 const isWorkingAt = (start, end, target) => {
     if (!start || !end || !target) return false;
     const s = parseInt(start.replace(":", ""));
@@ -21,6 +28,21 @@ const isWorkingAt = (start, end, target) => {
         return t >= s || t <= e;
     }
     return t >= s && t <= e;
+};
+
+// True when any part of the shift is at/after a threshold within the same workday evening window.
+const isWorkingAtOrAfter = (start, end, threshold) => {
+    const s = toMinutes(start);
+    let e = toMinutes(end);
+    const t = toMinutes(threshold);
+    if (s === null || e === null || t === null) return false;
+    if (s === e) return false;
+
+    // Shift crosses midnight
+    if (e <= s) e += 24 * 60;
+
+    // Check overlap with [threshold, 24:00] on the shift's start day.
+    return e >= t && s <= (24 * 60);
 };
 
 export const getFoodReport = async (req, res) => {
@@ -92,7 +114,7 @@ export const getFoodReport = async (req, res) => {
             const workingB_start = isWorkingAt(entry, exit, "06:45");
             const workingB_end = isWorkingAt(entry, exit, "09:00");
             const workingL = isWorkingAt(entry, exit, THR_LUNCH);
-            const workingD = isWorkingAt(entry, exit, THR_DINNER);
+            const workingD = isWorkingAtOrAfter(entry, exit, THR_DINNER);
 
             if (workingB_start && workingB_end) hasB = true;
             if (workingL) hasL = true;
