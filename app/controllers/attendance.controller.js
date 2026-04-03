@@ -44,10 +44,7 @@ export const logEmployeeAttendance = async (req, res) => {
     const data = req.body;
     if (!data.date || !data.officeEntryTime) return res.status(400).json({ message: 'Date and entry time required' });
     
-    const exists = await EmployeeAttendance.findOne({ date: data.date, employeeUsername: req.user.username }).lean();
-    if (exists) return res.status(400).json({ message: 'Already recorded' });
-
-    // Explicitly build the payload to ensure all capture fields are included
+    // Build the payload
     const payload = {
       date: data.date,
       employeeUsername: req.user.username,
@@ -66,12 +63,20 @@ export const logEmployeeAttendance = async (req, res) => {
       }
     });
 
-    const record = await EmployeeAttendance.create(payload);
+    // Upsert: update if exists, create if not — prevents E11000 duplicate key errors
+    const record = await EmployeeAttendance.findOneAndUpdate(
+      { date: data.date, employeeUsername: req.user.username },
+      { $set: payload },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
     return res.json(docToObject(record));
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
+
+
+
 
 export const updateEmployeeAttendance = async (req, res) => {
   try {
