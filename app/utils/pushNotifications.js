@@ -1,4 +1,5 @@
 import Employee from '../models/employee.model.js';
+import https from 'https';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const CHUNK_SIZE = 100;
@@ -41,24 +42,49 @@ export const sendExpoNotifications = async (messages = []) => {
   let sent = 0;
 
   for (const batch of batches) {
-    const res = await fetch(EXPO_PUSH_URL, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Accept-Encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(batch),
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      throw new Error(`Expo push failed (${res.status}): ${body}`);
+    const body = await postJson(EXPO_PUSH_URL, batch);
+    const errors = Array.isArray(body?.data)
+      ? body.data.filter((d) => d?.status === 'error')
+      : [];
+    if (errors.length > 0) {
+      throw new Error(`Expo push ticket error: ${JSON.stringify(errors[0])}`);
     }
     sent += batch.length;
   }
 
   return { sent };
 };
+
+const postJson = (url, payload) =>
+  new Promise((resolve, reject) => {
+    const data = JSON.stringify(payload);
+    const req = https.request(url, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data),
+      },
+    }, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => { raw += chunk; });
+      res.on('end', () => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          return reject(new Error(`Expo push failed (${res.statusCode}): ${raw}`));
+        }
+        try {
+          resolve(raw ? JSON.parse(raw) : {});
+        } catch {
+          resolve({});
+        }
+      });
+    });
+
+    req.on('error', (err) => reject(err));
+    req.write(data);
+    req.end();
+  });
 
 export const notifyScheduleAssigned = async ({ schedules = [] }) => {
   if (!Array.isArray(schedules) || schedules.length === 0) return { sent: 0 };
@@ -101,4 +127,3 @@ export const notifyScheduleAssigned = async ({ schedules = [] }) => {
 
   return sendExpoNotifications(messages);
 };
-

@@ -101,9 +101,14 @@ export const addSchedule = async (req, res) => {
     }));
 
     const created = await WorkSchedule.insertMany(docs);
-    notifyScheduleAssigned({ schedules: created.map((s) => docToObject(s)) })
-      .catch((err) => console.error('[push] schedule notify failed:', err.message));
-    return res.json({ count: created.length, tasks: created.map(s => docToObject(s)) });
+    let push = { sent: 0 };
+    try {
+      push = await notifyScheduleAssigned({ schedules: created.map((s) => docToObject(s)) });
+      console.log('[push] schedule notify sent:', push.sent);
+    } catch (err) {
+      console.error('[push] schedule notify failed:', err.message);
+    }
+    return res.json({ count: created.length, tasks: created.map(s => docToObject(s)), push });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
