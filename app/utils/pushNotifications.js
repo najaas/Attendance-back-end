@@ -31,6 +31,8 @@ export const collectPushTokensForUsers = async (usernames = []) => {
     });
   });
 
+  console.log(`[push] token-lookup users=${uniqueUsers.length} employeesFound=${employees.length} validTokens=${tokens.length}`);
+
   return tokens;
 };
 
@@ -99,6 +101,7 @@ export const notifyScheduleAssigned = async ({ schedules = [] }) => {
 
   const users = Array.from(byUser.keys());
   if (users.length === 0) return { sent: 0 };
+  console.log(`[push] schedule-notify start schedules=${schedules.length} users=${users.join(',')}`);
 
   const tokens = await collectPushTokensForUsers(users);
   if (tokens.length === 0) return { sent: 0 };

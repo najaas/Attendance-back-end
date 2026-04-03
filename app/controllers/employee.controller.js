@@ -144,6 +144,10 @@ export const registerPushToken = async (req, res) => {
 
     employee.pushTokens = filtered.slice(-5);
     await employee.save();
+    const masked = expoPushToken.length > 16
+      ? `${expoPushToken.slice(0, 12)}...${expoPushToken.slice(-4)}`
+      : expoPushToken;
+    console.log(`[push-token] saved username=${username} platform=${platform || 'unknown'} token=${masked} total=${employee.pushTokens.length}`);
 
     return res.json({ message: 'Push token saved' });
   } catch (err) {
