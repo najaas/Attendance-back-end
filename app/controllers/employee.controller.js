@@ -128,15 +128,26 @@ export const registerPushToken = async (req, res) => {
     const username = String(req.user?.username || '').trim();
     const expoPushToken = String(req.body?.expoPushToken || '').trim();
     const platform = String(req.body?.platform || '').trim();
+    console.log(`[push-token] register request username=${username || '-'} platform=${platform || '-'}`);
 
-    if (!username) return res.status(401).json({ message: 'Unauthorized' });
-    if (!expoPushToken) return res.status(400).json({ message: 'expoPushToken is required' });
+    if (!username) {
+      console.log('[push-token] rejected unauthorized (missing username in jwt)');
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    if (!expoPushToken) {
+      console.log(`[push-token] rejected username=${username} reason=missing_token`);
+      return res.status(400).json({ message: 'expoPushToken is required' });
+    }
     if (!/^Expo(nent)?PushToken\[[A-Za-z0-9_-]+\]$/.test(expoPushToken)) {
+      console.log(`[push-token] rejected username=${username} reason=invalid_format token=${expoPushToken.slice(0, 20)}...`);
       return res.status(400).json({ message: 'Invalid Expo push token' });
     }
 
     const employee = await Employee.findOne({ username });
-    if (!employee) return res.status(404).json({ message: 'Employee not found for this user' });
+    if (!employee) {
+      console.log(`[push-token] rejected username=${username} reason=employee_not_found`);
+      return res.status(404).json({ message: 'Employee not found for this user' });
+    }
 
     const existing = Array.isArray(employee.pushTokens) ? employee.pushTokens : [];
     const filtered = existing.filter((entry) => String(entry?.token || '').trim() !== expoPushToken);
@@ -151,6 +162,7 @@ export const registerPushToken = async (req, res) => {
 
     return res.json({ message: 'Push token saved' });
   } catch (err) {
+    console.log('[push-token] register error:', err.message);
     return res.status(500).json({ message: err.message });
   }
 };
