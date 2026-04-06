@@ -109,18 +109,19 @@ export const getFoodReport = async (req, res) => {
         const timeLog = [];
 
         const processRound = (entry, exit, sourceAtt, pLabel = "") => {
-            if (!entry || !exit) return;
+            if (!entry) return;
+            const effectiveExit = exit || "00:00";
             
-            const workingB_start = isWorkingAt(entry, exit, "06:45");
-            const workingB_end = isWorkingAt(entry, exit, "09:00");
-            const workingL = isWorkingAt(entry, exit, THR_LUNCH);
-            const workingD = isWorkingAtOrAfter(entry, exit, THR_DINNER);
+            const workingB_start = isWorkingAt(entry, effectiveExit, "06:45");
+            const workingB_end = isWorkingAt(entry, effectiveExit, "09:00");
+            const workingL = isWorkingAt(entry, effectiveExit, THR_LUNCH);
+            const workingD = isWorkingAtOrAfter(entry, effectiveExit, THR_DINNER);
 
             if (workingB_start && workingB_end) hasB = true;
             if (workingL) hasL = true;
             if (workingD) hasD = true;
 
-            timeLog.push(`${pLabel}${entry}-${exit}`);
+            timeLog.push(`${pLabel}${entry}-${effectiveExit}`);
 
             // Collect job numbers/projects
             if (sourceAtt === att) {
@@ -141,7 +142,7 @@ export const getFoodReport = async (req, res) => {
         ['s2_', 's3_', 's4_', 's5_'].forEach((p, idx) => {
             const entry = att[`${p}officeEntryTime`];
             const exit = att[`${p}officeExitTime`];
-            if (entry && exit) {
+            if (entry) {
                 processRound(entry, exit, {}, `R${idx+2}:`);
 
                 for (let i = 1; i <= 6; i++) {
