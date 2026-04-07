@@ -44,6 +44,9 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api', scheduleRoutes);
 app.use('/api', commonRoutes);
 app.use('/api/food', foodAllowanceRoutes);
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, ts: Date.now() });
+});
 
 // Test route (optional)
 app.get('/', (req, res) => {
