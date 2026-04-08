@@ -20,18 +20,39 @@ app.use(compression());
 const PORT = Number(process.env.PORT || 5001);
 
 // ----------------------
-// ✅ SIMPLE CORS (FIXED)
+// 🔒 SECURE CORS — whitelist only
 // ----------------------
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: true,        // 🔥 allow all origins (Vercel + localhost)
-  credentials: true
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS_BLOCKED`));
+    }
+  },
+  credentials: true,
 }));
 
-app.options('*', cors()); // 🔥 handle preflight
+app.options('*', cors());
 
 // ----------------------
+// 🔒 Security Headers
+// ----------------------
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
+});
 
-app.use(express.json());
+// Limit JSON body size to prevent abuse
+app.use(express.json({ limit: '2mb' }));
 
 // Database Connection
 connectDB();
@@ -44,25 +65,25 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api', scheduleRoutes);
 app.use('/api', commonRoutes);
 app.use('/api/food', foodAllowanceRoutes);
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true, ts: Date.now() });
-});
 
-// Test route (optional)
-app.get('/', (req, res) => {
-  res.send('API Running ✅');
+// Health check (public — used by uptime monitors)
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true });
 });
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error("❌ ERROR:", err.message);
-  res.status(500).json({ message: err.message || 'Internal Server Error' });
+  if (err.message === 'CORS_BLOCKED') {
+    return res.status(403).json({ message: 'Forbidden' });
+  }
+  console.error('ERROR:', err.message);
+  res.status(500).json({ message: 'Internal Server Error' });
 });
 
-// Start server (Render/local)
+// Start server
 if (!process.env.VERCEL) {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
   });
 }
 

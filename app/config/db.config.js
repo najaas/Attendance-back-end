@@ -3,11 +3,15 @@ import User from '../models/user.model.js';
 import Employee from '../models/employee.model.js';
 
 export const connectDB = async () => {
-  const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/attendance_db';
+  const MONGODB_URI = process.env.MONGODB_URI;
+  if (!MONGODB_URI) {
+    console.error('FATAL: MONGODB_URI is not set in environment. Server cannot start.');
+    process.exit(1);
+  }
   try {
     await mongoose.connect(MONGODB_URI);
-    console.log('MongoDB Connected...');
-    await seedDefaultsIfNeeded();
+    console.log('MongoDB Connected.');
+    await ensureAdminExists();
     await backfillEmployeesFromUsersIfNeeded();
   } catch (err) {
     console.error('MongoDB Connection Error:', err.message);
@@ -15,17 +19,28 @@ export const connectDB = async () => {
   }
 };
 
-async function seedDefaultsIfNeeded() {
+// Only create a default admin if no users exist AT ALL.
+// Uses env variables — never hardcoded weak passwords.
+async function ensureAdminExists() {
   const usersCount = await User.countDocuments();
   if (usersCount > 0) return;
 
-  const defaultUsers = [
-    { id: 1, username: 'admin', password: 'password', role: 'admin', name: 'Admin' },
-    { id: 2, username: 'operator', password: 'password', role: 'employee', name: 'Default Operator' },
-  ];
+  const adminUsername = process.env.DEFAULT_ADMIN_USERNAME || 'admin';
+  const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD;
 
-  await User.insertMany(defaultUsers);
-  console.log(`Seeded defaults: ${defaultUsers.length} users`);
+  if (!adminPassword) {
+    console.warn('⚠️  No users exist and DEFAULT_ADMIN_PASSWORD is not set in .env — skipping auto-seed. Create the admin user manually via database.');
+    return;
+  }
+
+  await User.create({
+    id: 1,
+    username: adminUsername,
+    password: adminPassword,
+    role: 'admin',
+    name: 'Admin',
+  });
+  console.log(`Admin user '${adminUsername}' created. Change the password immediately.`);
 }
 
 async function backfillEmployeesFromUsersIfNeeded() {
@@ -47,5 +62,5 @@ async function backfillEmployeesFromUsersIfNeeded() {
   }));
 
   await Employee.insertMany(docs, { ordered: false });
-  console.log(`Backfilled employees: ${docs.length}`);
+  console.log(`Backfilled ${docs.length} employees.`);
 }

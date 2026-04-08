@@ -4,7 +4,9 @@ node_modules/
 .DS_Store
 .idea/
 .vscode/
-package-lock.json (if you want to keep lock files, maybe don't ignore it, but some people do. I'll NOT ignore it).
-DEBUG.log
+build/
+dist/
+*.local
 backend.log
 backend-run.log
+DEBUG.log
