@@ -22,12 +22,7 @@ export const connectDB = async () => {
 // Sync admin from environment variables
 async function ensureAdminExists() {
   const adminUsername = process.env.DEFAULT_ADMIN_USERNAME || 'admin';
-  const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD;
-
-  if (!adminPassword) {
-    console.warn('⚠️ DEFAULT_ADMIN_PASSWORD not set. Skipping admin sync.');
-    return;
-  }
+  const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'password';
 
   const admin = await User.findOne({ username: adminUsername });
   if (admin) {
@@ -35,8 +30,8 @@ async function ensureAdminExists() {
     await User.updateOne({ username: adminUsername }, { $set: { password: adminPassword } });
     console.log(`✅ Existing admin password synchronized with environment variable.`);
   } else {
-    // Only check if it's safe to create (id: 1)
-    const nextId = 1;
+    const maxUser = await User.findOne().sort({ id: -1 }).select({ id: 1 }).lean();
+    const nextId = Math.max(Number(maxUser?.id || 0), 0) + 1;
     await User.create({
       id: nextId,
       username: adminUsername,
