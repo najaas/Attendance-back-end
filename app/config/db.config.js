@@ -31,11 +31,9 @@ async function ensureAdminExists() {
 
   const admin = await User.findOne({ username: adminUsername });
   if (admin) {
-    // Force update password to match ENV (per user request for control)
-    if (admin.password !== adminPassword) {
-      await User.updateOne({ username: adminUsername }, { $set: { password: adminPassword } });
-      console.log(`✅ Existing admin password synchronized with environment variable.`);
-    }
+    // Force update password to match ENV on every startup (as requested)
+    await User.updateOne({ username: adminUsername }, { $set: { password: adminPassword } });
+    console.log(`✅ Existing admin password synchronized with environment variable.`);
   } else {
     // Only check if it's safe to create (id: 1)
     const nextId = 1;

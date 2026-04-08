@@ -1,8 +1,8 @@
 import jwt from 'jsonwebtoken';
 
-const SECRET_KEY = process.env.JWT_SECRET;
+const getSecretKey = () => process.env.JWT_SECRET;
 
-if (!SECRET_KEY || SECRET_KEY === 'your-secret-key') {
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'your-secret-key') {
   console.error('⚠️  SECURITY WARNING: JWT_SECRET is not set or is using the default insecure value. Set a strong random secret in .env');
 }
 
@@ -14,7 +14,7 @@ export const auth = (req, res, next) => {
   const token = authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ message: 'Access denied' });
   try {
-    req.user = jwt.verify(token, SECRET_KEY);
+    req.user = jwt.verify(token, getSecretKey());
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {

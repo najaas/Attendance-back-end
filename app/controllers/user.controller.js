@@ -2,9 +2,6 @@ import jwt from 'jsonwebtoken';
 import User from '../models/user.model.js';
 import { getNextId } from '../utils/helpers.js';
 
-const SECRET_KEY = process.env.JWT_SECRET;
-const TOKEN_EXPIRY = process.env.JWT_EXPIRY || '12h';   // tokens expire in 12 hours
-
 // Simple in-memory login rate limiter (per IP) — max 10 attempts per 15 min
 const loginAttempts = new Map();
 const RATE_WINDOW_MS = 15 * 60 * 1000;
@@ -42,11 +39,12 @@ export const login = async (req, res) => {
     }
     const token = jwt.sign(
       { id: user.id, username: user.username, role: user.role, name: user.name || user.username },
-      SECRET_KEY,
-      { expiresIn: TOKEN_EXPIRY }
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRY || '12h' }
     );
     return res.json({ token, role: user.role });
   } catch (err) {
+    console.error('Login error:', err);
     return res.status(500).json({ message: 'Login failed' });
   }
 };
