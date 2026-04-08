@@ -19,28 +19,35 @@ export const connectDB = async () => {
   }
 };
 
-// Only create a default admin if no users exist AT ALL.
-// Uses env variables — never hardcoded weak passwords.
+// Sync admin from environment variables
 async function ensureAdminExists() {
-  const usersCount = await User.countDocuments();
-  if (usersCount > 0) return;
-
   const adminUsername = process.env.DEFAULT_ADMIN_USERNAME || 'admin';
   const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD;
 
   if (!adminPassword) {
-    console.warn('⚠️  No users exist and DEFAULT_ADMIN_PASSWORD is not set in .env — skipping auto-seed. Create the admin user manually via database.');
+    console.warn('⚠️ DEFAULT_ADMIN_PASSWORD not set. Skipping admin sync.');
     return;
   }
 
-  await User.create({
-    id: 1,
-    username: adminUsername,
-    password: adminPassword,
-    role: 'admin',
-    name: 'Admin',
-  });
-  console.log(`Admin user '${adminUsername}' created. Change the password immediately.`);
+  const admin = await User.findOne({ username: adminUsername });
+  if (admin) {
+    // Force update password to match ENV (per user request for control)
+    if (admin.password !== adminPassword) {
+      await User.updateOne({ username: adminUsername }, { $set: { password: adminPassword } });
+      console.log(`✅ Existing admin password synchronized with environment variable.`);
+    }
+  } else {
+    // Only check if it's safe to create (id: 1)
+    const nextId = 1;
+    await User.create({
+      id: nextId,
+      username: adminUsername,
+      password: adminPassword,
+      role: 'admin',
+      name: 'Admin',
+    });
+    console.log(`✅ New admin user '${adminUsername}' created from environment variable.`);
+  }
 }
 
 async function backfillEmployeesFromUsersIfNeeded() {
