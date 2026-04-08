@@ -28,16 +28,23 @@ const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000')
   .filter(Boolean);
 
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (ALLOWED_ORIGINS.indexOf(origin) !== -1 || ALLOWED_ORIGINS.includes('*')) {
       callback(null, true);
     } else {
-      callback(new Error(`CORS_BLOCKED`));
+      console.warn(`⚠️ CORS blocked for: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
+// Explicitly handle preflight for all routes
 app.options('*', cors());
 
 // ----------------------
