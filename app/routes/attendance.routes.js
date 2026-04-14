@@ -14,7 +14,7 @@ router.get('/employee-attendance/:date', auth, attendanceController.getEmployeeA
 router.post('/employee-attendance', auth, attendanceController.logEmployeeAttendance);
 router.put('/employee-attendance', auth, attendanceController.updateEmployeeAttendance);
 router.patch('/admin/employee-attendance/break', auth, adminOnly, attendanceController.updateBreakMinutes);
-
+router.post('/admin/enrich-attendance', auth, adminOnly, attendanceController.enrichAttendanceWithSchedule);
 router.post('/import-data', auth, adminOnly, employeeController.importData);
 
 export default router;

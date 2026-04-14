@@ -10,16 +10,79 @@ function docToObject(doc) {
   return { ...obj, id: rid, _id: rid };
 }
 
+const escapeRegex = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const lookupScheduleByJobNumber = async (jobNumber, date) => {
   if (!jobNumber) return null;
+  const exactJob = String(jobNumber).trim();
+  const cleanJob = exactJob.split(',')[0].trim();
+  
   let match = null;
+  
+  const findMatch = async (queryDate) => {
+    let q = { taskDate: queryDate };
+    let qNoDate = {};
+    
+    // 1. Try exact match
+    let m = await WorkSchedule.findOne(queryDate ? { ...q, jobNumber: exactJob } : { jobNumber: exactJob }).sort(queryDate ? {} : { createdAt: -1 }).lean();
+    
+    // 2. Try regex match with exactJob
+    if (!m) m = await WorkSchedule.findOne(queryDate ? { ...q, jobNumber: { $regex: escapeRegex(exactJob), $options: 'i' } } : { jobNumber: { $regex: escapeRegex(exactJob), $options: 'i' } }).sort(queryDate ? {} : { createdAt: -1 }).lean();
+    
+    // 3. Try exact match with cleanJob (if different)
+    if (!m && exactJob !== cleanJob) m = await WorkSchedule.findOne(queryDate ? { ...q, jobNumber: cleanJob } : { jobNumber: cleanJob }).sort(queryDate ? {} : { createdAt: -1 }).lean();
+    
+    // 4. Try regex match with cleanJob
+    if (!m && exactJob !== cleanJob) m = await WorkSchedule.findOne(queryDate ? { ...q, jobNumber: { $regex: escapeRegex(cleanJob), $options: 'i' } } : { jobNumber: { $regex: escapeRegex(cleanJob), $options: 'i' } }).sort(queryDate ? {} : { createdAt: -1 }).lean();
+    
+    return m;
+  };
+
   if (date) {
-    match = await WorkSchedule.findOne({ jobNumber: String(jobNumber).trim(), taskDate: date }).lean();
+    match = await findMatch(date);
   }
   if (!match) {
-    match = await WorkSchedule.findOne({ jobNumber: String(jobNumber).trim() }).sort({ date: -1 }).lean();
+    match = await findMatch(null);
   }
   return match;
+};
+
+const enrichJobData = async (obj, date, isMongooseDoc) => {
+  const checkAndSet = async (jobField, projField, custField, scopeField, vehicleField, locationField) => {
+    const jobVal = String((isMongooseDoc ? (obj.get ? obj.get(jobField) : obj[jobField]) : obj[jobField]) || '').trim();
+    if (jobVal) {
+      const sch = await lookupScheduleByJobNumber(jobVal, date);
+      if (sch) {
+        const valSet = (field, val) => {
+          if (!val) return;
+          const currentVal = isMongooseDoc ? (obj.get ? obj.get(field) : obj[field]) : obj[field];
+          const cleanCurrent = String(currentVal || '').trim();
+          if (!cleanCurrent || cleanCurrent === '-') {
+            if (isMongooseDoc) {
+              if (obj.set) obj.set(field, val);
+              else obj[field] = val;
+            } else {
+              obj[field] = val;
+            }
+          }
+        };
+        valSet(projField, sch.projectName);
+        valSet(custField, sch.customerName);
+        valSet(scopeField, sch.description || sch.title);
+        valSet(vehicleField, sch.vehicle);
+        valSet(locationField, sch.location || sch.site);
+      }
+    }
+  };
+
+  await checkAndSet('jobNumber', 'projectName', 'customerName', 'scope', 'vehicle', 'locationString');
+  for (let i = 1; i <= 6; i++) {
+    await checkAndSet(`site${i}JobNumber`, `site${i}ProjectName`, `site${i}CustomerName`, `site${i}Scope`, `site${i}Vehicle`, `site${i}Location`);
+    for (let r = 2; r <= 5; r++) {
+      const p = `s${r}_`;
+      await checkAndSet(`${p}site${i}JobNumber`, `${p}site${i}ProjectName`, `${p}site${i}CustomerName`, `${p}site${i}Scope`, `${p}site${i}Vehicle`, `${p}site${i}Location`);
+    }
+  }
 };
 
 export const jobLookup = async (req, res) => {
@@ -63,6 +126,8 @@ export const logEmployeeAttendance = async (req, res) => {
       }
     });
 
+    await enrichJobData(payload, payload.date, false);
+
     // Upsert: update if exists, create if not — prevents E11000 duplicate key errors
     const record = await EmployeeAttendance.findOneAndUpdate(
       { date: data.date, employeeUsername: req.user.username },
@@ -100,16 +165,7 @@ export const updateEmployeeAttendance = async (req, res) => {
       }
     });
 
-    // Auto-enrich logic
-    const effectiveJob = String(current.jobNumber || current.site1JobNumber || '').trim();
-    if (effectiveJob) {
-      const schedule = await lookupScheduleByJobNumber(effectiveJob, current.date);
-      if (schedule) {
-        if (!current.projectName) current.projectName = schedule.projectName || '';
-        if (!current.customerName) current.customerName = schedule.customerName || '';
-        if (!current.vehicle) current.vehicle = schedule.vehicle || '';
-      }
-    }
+    await enrichJobData(current, current.date, true);
 
     await current.save();
     return res.json(docToObject(current));
@@ -168,23 +224,13 @@ export const adminExportAttendance = async (req, res) => {
 
 export const enrichAttendanceWithSchedule = async (req, res) => {
   try {
-    const records = await EmployeeAttendance.find().lean();
+    const records = await EmployeeAttendance.find();
     let count = 0;
     for (const r of records) {
-      const job = String(r.jobNumber || r.site1JobNumber || '').trim();
-      if (job) {
-        const sch = await lookupScheduleByJobNumber(job, r.date);
-        if (sch) {
-          await EmployeeAttendance.updateOne({ _id: r._id }, { 
-            $set: { 
-              projectName: r.projectName || sch.projectName || '',
-              customerName: r.customerName || sch.customerName || '',
-              vehicle: r.vehicle || sch.vehicle || ''
-            } 
-          });
-          count++;
-        }
-      }
+      // enrichJobData acts directly on the Mongoose document using .set()
+      await enrichJobData(r, r.date, true);
+      await r.save({ validateBeforeSave: false });
+      count++;
     }
     return res.json({ message: `Success! Enriched ${count} documents.` });
   } catch (err) {
