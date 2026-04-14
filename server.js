@@ -12,6 +12,7 @@ import attendanceRoutes from './app/routes/attendance.routes.js';
 import scheduleRoutes from './app/routes/schedule.routes.js';
 import commonRoutes from './app/routes/common.routes.js';
 import foodAllowanceRoutes from './app/routes/foodAllowance.routes.js';
+import robotRoutes from './app/routes/robotRoutes.js';
 
 
 const app = express();
@@ -71,6 +72,7 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api', scheduleRoutes);
 app.use('/api', commonRoutes);
 app.use('/api/food', foodAllowanceRoutes);
+app.use('/api/robot', robotRoutes);
 
 // Health check (public — used by uptime monitors)
 app.get('/api/health', (req, res) => {
