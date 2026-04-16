@@ -146,7 +146,7 @@ export const logEmployeeAttendance = async (req, res) => {
 export const updateEmployeeAttendance = async (req, res) => {
   try {
     const data = req.body;
-    const current = await EmployeeAttendance.findOne({ date: data.date, employeeUsername: req.user.username });
+    const current = await EmployeeAttendance.findOne({ date: data.date, employeeUsername: req.user.username }).lean();
     if (!current) return res.status(404).json({ message: 'Record not found' });
 
     // Update standard fields
@@ -185,7 +185,7 @@ export const getEmployeeAttendanceByDate = async (req, res) => {
 
 export const getEmployeeAttendanceHistory = async (req, res) => {
   try {
-    const records = await EmployeeAttendance.find({ employeeUsername: req.user.username }).sort({ date: -1 }).limit(30);
+    const records = await EmployeeAttendance.find({ employeeUsername: req.user.username }).sort({ date: -1 }).limit(30).lean();
     return res.json(records.map(docToObject));
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -215,7 +215,7 @@ export const updateBreakMinutes = async (req, res) => {
 
 export const adminExportAttendance = async (req, res) => {
   try {
-    const records = await EmployeeAttendance.find().sort({ date: -1 });
+    const records = await EmployeeAttendance.find().sort({ date: -1 }).lean();
     return res.json(records.map(docToObject));
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -224,7 +224,7 @@ export const adminExportAttendance = async (req, res) => {
 
 export const enrichAttendanceWithSchedule = async (req, res) => {
   try {
-    const records = await EmployeeAttendance.find();
+    const records = await EmployeeAttendance.find().lean();
     let count = 0;
     for (const r of records) {
       // enrichJobData acts directly on the Mongoose document using .set()

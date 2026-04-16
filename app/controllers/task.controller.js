@@ -24,9 +24,7 @@ export const getTasks = async (req, res) => {
 
 export const addTask = async (req, res) => {
   try {
-    const { title, description, taskDate, site, assignedTo, assignedToUsernames } = req.body;
-    const location = String(req.body?.location || req.body?.taskLocation || '').trim();
-    const vehicle = String(req.body?.vehicle || '').trim();
+    const { title, description, taskDate, assignedTo, assignedToUsernames, adminNote } = req.body;
     const jobNumber = String(req.body?.jobNumber || req.body?.jobNo || '').trim();
     const projectName = String(req.body?.projectName || req.body?.project || '').trim();
     const customerName = String(req.body?.customerName || req.body?.customer || '').trim();
@@ -56,9 +54,7 @@ export const addTask = async (req, res) => {
       description: (description || '').trim(),
       jobNumber, projectName, customerName,
       taskDate: taskDate || getLocalDateString(),
-      location,
-      site: (site || 'All Sites').trim(),
-      vehicle,
+      adminNote: String(adminNote || '').trim(),
       assignedToUsername: a.username,
       assignedToName: a.name,
       assignedByUsername: req.user.username,
@@ -105,9 +101,7 @@ export const updateTask = async (req, res) => {
     task.projectName = String(req.body?.projectName || '').trim();
     task.customerName = String(req.body?.customerName || '').trim();
     task.taskDate = req.body?.taskDate || task.taskDate;
-    task.location = String(req.body?.location || '').trim();
-    task.site = String(req.body?.site || 'All Sites').trim();
-    task.vehicle = String(req.body?.vehicle || '').trim();
+    task.adminNote = String(req.body?.adminNote || '').trim();
 
     if (req.body?.status) {
       task.status = req.body.status;
@@ -132,6 +126,22 @@ export const deleteTask = async (req, res) => {
     const deleted = await Task.findOneAndDelete({ id: Number(req.params.id) }).lean();
     if (!deleted) return res.status(404).json({ message: 'Task not found' });
     return res.json({ message: 'Task deleted' });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+export const updateTaskByEmployee = async (req, res) => {
+  try {
+    const taskId = Number(req.params.id);
+    const task = await Task.findOne({ id: taskId, assignedToUsername: req.user.username });
+    if (!task) return res.status(404).json({ message: 'Task not found or unauthorized' });
+
+    if (req.body.panelPhotosSent !== undefined) {
+      task.panelPhotosSent = !!req.body.panelPhotosSent;
+    }
+
+    await task.save();
+    return res.json(docToObject(task));
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

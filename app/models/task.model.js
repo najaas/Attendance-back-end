@@ -18,7 +18,9 @@ const taskSchema = new mongoose.Schema(
     assignedByUsername: { type: String, required: true, trim: true },
     status: { type: String, enum: ['pending', 'completed'], default: 'pending', index: true },
     completionNote: { type: String, default: '', trim: true },
+    adminNote: { type: String, default: '', trim: true },
     completedAt: { type: Date, default: null },
+    panelPhotosSent: { type: Boolean, default: false },
   },
   { timestamps: true, versionKey: false }
 );
