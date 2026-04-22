@@ -6,6 +6,7 @@ const router = express.Router();
 
 // Public login — rate limited inside controller
 router.post('/login', userController.login);
+router.get('/me', auth, userController.getMe);
 
 // Register is ADMIN-ONLY — cannot be called without a valid admin token
 router.post('/register', auth, adminOnly, userController.register);

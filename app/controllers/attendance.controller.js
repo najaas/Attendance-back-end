@@ -146,7 +146,7 @@ export const logEmployeeAttendance = async (req, res) => {
 export const updateEmployeeAttendance = async (req, res) => {
   try {
     const data = req.body;
-    const current = await EmployeeAttendance.findOne({ date: data.date, employeeUsername: req.user.username }).lean();
+    const current = await EmployeeAttendance.findOne({ date: data.date, employeeUsername: req.user.username });
     if (!current) return res.status(404).json({ message: 'Record not found' });
 
     // Update standard fields

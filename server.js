@@ -13,6 +13,7 @@ import scheduleRoutes from './app/routes/schedule.routes.js';
 import commonRoutes from './app/routes/common.routes.js';
 import foodAllowanceRoutes from './app/routes/foodAllowance.routes.js';
 import robotRoutes from './app/routes/robotRoutes.js';
+import fsrRoutes from './app/routes/fsr.routes.js';
 
 
 const app = express();
@@ -58,8 +59,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Limit JSON body size to prevent abuse
-app.use(express.json({ limit: '2mb' }));
+// Limit JSON body size for signatures and data
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Database Connection
 connectDB();
@@ -73,6 +75,7 @@ app.use('/api', scheduleRoutes);
 app.use('/api', commonRoutes);
 app.use('/api/food', foodAllowanceRoutes);
 app.use('/api/robot', robotRoutes);
+app.use('/api/fsr', fsrRoutes);
 
 // Health check (public — used by uptime monitors)
 app.get('/api/health', (req, res) => {
