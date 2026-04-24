@@ -16,6 +16,7 @@ import robotRoutes from './app/routes/robotRoutes.js';
 import fsrRoutes from './app/routes/fsr.routes.js';
 
 
+
 const app = express();
 app.use(compression());
 const PORT = Number(process.env.PORT || 5001);
@@ -59,9 +60,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Limit JSON body size for signatures and data
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+// Limit JSON body size for signatures and data (increased for PDFs)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Database Connection
 connectDB();
@@ -76,6 +77,7 @@ app.use('/api', commonRoutes);
 app.use('/api/food', foodAllowanceRoutes);
 app.use('/api/robot', robotRoutes);
 app.use('/api/fsr', fsrRoutes);
+
 
 // Health check (public — used by uptime monitors)
 app.get('/api/health', (req, res) => {

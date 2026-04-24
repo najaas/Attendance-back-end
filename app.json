@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "edbf624e-d9c8-404a-967d-6798a79eafda"
+      }
+    },
+    "android": {
+      "package": "com.najas.attendancebackend"
+    }
+  }
+}
