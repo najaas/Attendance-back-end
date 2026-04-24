@@ -1,4 +1,6 @@
 import FSR from '../models/fsr.model.js';
+import WorkSchedule from '../models/workSchedule.model.js';
+import { getLocalDateString } from '../utils/helpers.js';
 
 export const saveFSR = async (req, res) => {
   try {
@@ -8,6 +10,30 @@ export const saveFSR = async (req, res) => {
     }
     const newFsr = new FSR(data);
     await newFsr.save();
+
+    // Link and Update Schedule Status to 'completed'
+    try {
+      const today = getLocalDateString();
+      const query = {
+        taskDate: today,
+        assignedToUsername: req.user.username,
+        $or: [
+          { projectName: data.project },
+          { jobNumber: data.jobRef }
+        ]
+      };
+      
+      const schedule = await WorkSchedule.findOne(query).sort({ createdAt: -1 });
+      if (schedule) {
+        schedule.status = 'completed';
+        schedule.statusDate = today;
+        await schedule.save();
+        console.log(`[Status] Marked schedule ${schedule.id} as completed for ${req.user.username}`);
+      }
+    } catch (schedErr) {
+      console.error('[Status] Failed to update schedule status:', schedErr.message);
+    }
+
     res.status(201).json(newFsr);
   } catch (error) {
     res.status(500).json({ message: 'Failed to save FSR', error: error.message });
