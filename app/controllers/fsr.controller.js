@@ -57,6 +57,32 @@ export const updateFSR = async (req, res) => {
     const { id } = req.params;
     const updated = await FSR.findByIdAndUpdate(id, req.body, { new: true });
     if (!updated) return res.status(404).json({ message: 'FSR not found' });
+
+    // Link and Update Schedule Status to 'completed'
+    try {
+      if (req.user && req.user.username && updated.project && updated.jobRef) {
+        const today = getLocalDateString();
+        const query = {
+          taskDate: today,
+          assignedToUsername: req.user.username,
+          $or: [
+            { projectName: updated.project },
+            { jobNumber: updated.jobRef }
+          ]
+        };
+        
+        const schedule = await WorkSchedule.findOne(query).sort({ createdAt: -1 });
+        if (schedule) {
+          schedule.status = 'completed';
+          schedule.statusDate = today;
+          await schedule.save();
+          console.log(`[Status] Marked schedule ${schedule.id} as completed on FSR update for ${req.user.username}`);
+        }
+      }
+    } catch (schedErr) {
+      console.error('[Status] Failed to update schedule status on update:', schedErr.message);
+    }
+
     res.status(200).json(updated);
   } catch (error) {
     res.status(500).json({ message: 'Failed to update FSR', error: error.message });
