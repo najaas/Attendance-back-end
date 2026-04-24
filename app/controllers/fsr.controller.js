@@ -55,7 +55,18 @@ export const getFSRs = async (req, res) => {
 export const updateFSR = async (req, res) => {
   try {
     const { id } = req.params;
-    const updated = await FSR.findByIdAndUpdate(id, req.body, { new: true });
+    const updateData = { ...req.body };
+
+    // If a non-admin employee is submitting/completing the FSR,
+    // override techName with their own name so the admin table shows who did the work
+    if (req.user && req.user.role !== 'admin') {
+      updateData.techName = req.user.shortName || req.user.name || updateData.techName;
+      if (req.user.designation) {
+        updateData.techDesignation = req.user.designation;
+      }
+    }
+
+    const updated = await FSR.findByIdAndUpdate(id, updateData, { new: true });
     if (!updated) return res.status(404).json({ message: 'FSR not found' });
 
     // Link and Update Schedule Status to 'completed'
