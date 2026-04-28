@@ -41,6 +41,7 @@ const fsrSchema = new mongoose.Schema({
   assignedEmployees: [String],
   formType: { type: String, default: 'table' }, // 'table' or 'plain'
   workDonePlain: String,
+  status: { type: String, default: 'pending' },
   createdAt: { type: Date, default: Date.now, expires: 2592000 } // 2592000s = 30 days
 });
 

@@ -8,30 +8,38 @@ export const saveFSR = async (req, res) => {
     if (!data.techName && req.user && req.user.name) {
       data.techName = req.user.name;
     }
+    if (data.techSignature && !data.status) {
+      data.status = 'completed';
+    } else if (!data.status) {
+      data.status = 'pending';
+    }
+
     const newFsr = new FSR(data);
     await newFsr.save();
 
-    // Link and Update Schedule Status to 'completed'
-    try {
-      const today = getLocalDateString();
-      const query = {
-        taskDate: today,
-        assignedToUsername: req.user.username,
-        $or: [
-          { projectName: data.project },
-          { jobNumber: data.jobRef }
-        ]
-      };
-      
-      const schedule = await WorkSchedule.findOne(query).sort({ createdAt: -1 });
-      if (schedule) {
-        schedule.status = 'completed';
-        schedule.statusDate = today;
-        await schedule.save();
-        console.log(`[Status] Marked schedule ${schedule.id} as completed for ${req.user.username}`);
+    // Link and Update Schedule Status to 'completed' if FSR is completed
+    if (data.status === 'completed') {
+      try {
+        const today = getLocalDateString();
+        const query = {
+          taskDate: today,
+          assignedToUsername: req.user.username,
+          $or: [
+            { projectName: data.project },
+            { jobNumber: data.jobRef }
+          ]
+        };
+        
+        const schedule = await WorkSchedule.findOne(query).sort({ createdAt: -1 });
+        if (schedule) {
+          schedule.status = 'completed';
+          schedule.statusDate = today;
+          await schedule.save();
+          console.log(`[Status] Marked schedule ${schedule.id} as completed for ${req.user.username}`);
+        }
+      } catch (schedErr) {
+        console.error('[Status] Failed to update schedule status:', schedErr.message);
       }
-    } catch (schedErr) {
-      console.error('[Status] Failed to update schedule status:', schedErr.message);
     }
 
     res.status(201).json(newFsr);
@@ -66,32 +74,39 @@ export const updateFSR = async (req, res) => {
       }
     }
 
+    // Auto-update status based on signature if not explicitly provided
+    if (updateData.techSignature && !updateData.status) {
+      updateData.status = 'completed';
+    }
+
     const updated = await FSR.findByIdAndUpdate(id, updateData, { new: true });
     if (!updated) return res.status(404).json({ message: 'FSR not found' });
 
-    // Link and Update Schedule Status to 'completed'
-    try {
-      if (req.user && req.user.username && updated.project && updated.jobRef) {
-        const today = getLocalDateString();
-        const query = {
-          taskDate: today,
-          assignedToUsername: req.user.username,
-          $or: [
-            { projectName: updated.project },
-            { jobNumber: updated.jobRef }
-          ]
-        };
-        
-        const schedule = await WorkSchedule.findOne(query).sort({ createdAt: -1 });
-        if (schedule) {
-          schedule.status = 'completed';
-          schedule.statusDate = today;
-          await schedule.save();
-          console.log(`[Status] Marked schedule ${schedule.id} as completed on FSR update for ${req.user.username}`);
+    // Link and Update Schedule Status to 'completed' if FSR is completed
+    if (updated.status === 'completed') {
+      try {
+        if (req.user && req.user.username && updated.project && updated.jobRef) {
+          const today = getLocalDateString();
+          const query = {
+            taskDate: today,
+            assignedToUsername: req.user.username,
+            $or: [
+              { projectName: updated.project },
+              { jobNumber: updated.jobRef }
+            ]
+          };
+          
+          const schedule = await WorkSchedule.findOne(query).sort({ createdAt: -1 });
+          if (schedule) {
+            schedule.status = 'completed';
+            schedule.statusDate = today;
+            await schedule.save();
+            console.log(`[Status] Marked schedule ${schedule.id} as completed on FSR update for ${req.user.username}`);
+          }
         }
+      } catch (schedErr) {
+        console.error('[Status] Failed to update schedule status on update:', schedErr.message);
       }
-    } catch (schedErr) {
-      console.error('[Status] Failed to update schedule status on update:', schedErr.message);
     }
 
     res.status(200).json(updated);
