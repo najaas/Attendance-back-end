@@ -8,7 +8,7 @@ export const saveFSR = async (req, res) => {
     if (!data.techName && req.user && req.user.name) {
       data.techName = req.user.name;
     }
-    if (data.techSignature && !data.status) {
+    if (data.techSignature) {
       data.status = 'completed';
     } else if (!data.status) {
       data.status = 'pending';
@@ -74,12 +74,12 @@ export const updateFSR = async (req, res) => {
       }
     }
 
-    // Auto-update status based on signature if not explicitly provided
-    if (updateData.techSignature && !updateData.status) {
+    // Auto-update status to completed if signature is present
+    if (updateData.techSignature) {
       updateData.status = 'completed';
     }
 
-    const updated = await FSR.findByIdAndUpdate(id, updateData, { new: true });
+    const updated = await FSR.findByIdAndUpdate(id, updateData, { returnDocument: 'after' });
     if (!updated) return res.status(404).json({ message: 'FSR not found' });
 
     // Link and Update Schedule Status to 'completed' if FSR is completed

@@ -206,7 +206,7 @@ export const getAllEmployeeAttendance = async (req, res) => {
 export const updateBreakMinutes = async (req, res) => {
   try {
     const { id, breakMinutes, field = 'breakMinutes' } = req.body;
-    const record = await EmployeeAttendance.findByIdAndUpdate(id, { [field]: breakMinutes }, { new: true });
+    const record = await EmployeeAttendance.findByIdAndUpdate(id, { [field]: breakMinutes }, { returnDocument: 'after' });
     return res.json(docToObject(record));
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -287,7 +287,7 @@ export const clearRound = async (req, res) => {
       FIELDS.forEach(f => { update.$unset[f] = 1; });
     }
 
-    const updatedRecord = await EmployeeAttendance.findByIdAndUpdate(id, update, { new: true });
+    const updatedRecord = await EmployeeAttendance.findByIdAndUpdate(id, update, { returnDocument: 'after' });
     
     // Check if there's ANYTHING left
     const hasAnyKeys = Object.keys(updatedRecord.toObject()).some(k => {

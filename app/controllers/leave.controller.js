@@ -15,7 +15,7 @@ export const updateLeaveStatus = async (req, res) => {
     const leave = await Leave.findByIdAndUpdate(
       req.params.id,
       { status, adminNote, reviewedBy, reviewedAt: new Date() },
-      { new: true }
+      { returnDocument: 'after' }
     );
     res.json(leave);
   } catch (error) {
