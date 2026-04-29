@@ -23,19 +23,18 @@ export const saveFSR = async (req, res) => {
         const today = getLocalDateString();
         const query = {
           taskDate: today,
-          assignedToUsername: req.user.username,
           $or: [
             { projectName: data.project },
             { jobNumber: data.jobRef }
           ]
         };
         
-        const schedule = await WorkSchedule.findOne(query).sort({ createdAt: -1 });
-        if (schedule) {
+        const schedules = await WorkSchedule.find(query);
+        for (const schedule of schedules) {
           schedule.status = 'completed';
           schedule.statusDate = today;
           await schedule.save();
-          console.log(`[Status] Marked schedule ${schedule.id} as completed for ${req.user.username}`);
+          console.log(`[Status] Marked schedule ${schedule.id} as completed for ${schedule.assignedToUsername}`);
         }
       } catch (schedErr) {
         console.error('[Status] Failed to update schedule status:', schedErr.message);
@@ -89,19 +88,18 @@ export const updateFSR = async (req, res) => {
           const today = getLocalDateString();
           const query = {
             taskDate: today,
-            assignedToUsername: req.user.username,
             $or: [
               { projectName: updated.project },
               { jobNumber: updated.jobRef }
             ]
           };
           
-          const schedule = await WorkSchedule.findOne(query).sort({ createdAt: -1 });
-          if (schedule) {
+          const schedules = await WorkSchedule.find(query);
+          for (const schedule of schedules) {
             schedule.status = 'completed';
             schedule.statusDate = today;
             await schedule.save();
-            console.log(`[Status] Marked schedule ${schedule.id} as completed on FSR update for ${req.user.username}`);
+            console.log(`[Status] Marked schedule ${schedule.id} as completed on FSR update for ${schedule.assignedToUsername}`);
           }
         }
       } catch (schedErr) {
