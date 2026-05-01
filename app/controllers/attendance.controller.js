@@ -202,6 +202,8 @@ export const getAllEmployeeAttendance = async (req, res) => {
     const rawDate = String(req.query?.date || '').trim().toLowerCase();
     const limitNum = Number(req.query?.limit || 500);
     const limit = Number.isFinite(limitNum) ? Math.max(1, Math.min(limitNum, 2000)) : 500;
+    const lite = String(req.query?.lite || '').trim() === '1';
+    if (lite) res.set('Cache-Control', 'private, max-age=15');
     let query = {};
     if (rawDate && rawDate !== 'all') {
       query = { date: rawDate === 'today' ? todayLocal() : rawDate };
@@ -350,5 +352,3 @@ export const deleteEmployeeAttendance = async (req, res) => {
     return res.status(500).json({ message: err.message });
   }
 };
-    const lite = String(req.query?.lite || '').trim() === '1';
-    if (lite) res.set('Cache-Control', 'private, max-age=15');
