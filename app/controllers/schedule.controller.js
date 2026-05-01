@@ -7,6 +7,8 @@ import { notifyScheduleAssigned } from '../utils/pushNotifications.js';
 export const getSchedules = async (req, res) => {
   try {
     const rawDate = String(req.query?.date || '').trim();
+    const lite = String(req.query?.lite || '').trim() === '1';
+    if (lite) res.set('Cache-Control', 'private, max-age=15');
     const requestedDate = rawDate || getLocalDateString();
     let query = {};
 
@@ -23,7 +25,27 @@ export const getSchedules = async (req, res) => {
       query = { taskDate: getLocalDateString() };
     }
 
-    const schedules = await WorkSchedule.find(query).sort({ taskDate: 1, createdAt: -1 }).lean();
+    let q = WorkSchedule.find(query).sort({ taskDate: 1, createdAt: -1 });
+    if (lite) {
+      q = q.select({
+        _id: 1,
+        id: 1,
+        taskDate: 1,
+        title: 1,
+        description: 1,
+        jobNumber: 1,
+        projectName: 1,
+        customerName: 1,
+        location: 1,
+        site: 1,
+        vehicle: 1,
+        assignedToUsername: 1,
+        assignedToName: 1,
+        status: 1,
+        createdAt: 1,
+      });
+    }
+    const schedules = await q.lean();
     return res.json(schedules.map(s => ({
       ...docToObject(s),
       vehicle: String(s.vehicle || '').trim(),

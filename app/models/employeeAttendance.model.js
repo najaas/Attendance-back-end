@@ -40,5 +40,7 @@ const employeeAttendanceSchema = new mongoose.Schema(
 );
 
 employeeAttendanceSchema.index({ date: 1, employeeUsername: 1 }, { unique: true });
+employeeAttendanceSchema.index({ date: -1, createdAt: -1 });
+employeeAttendanceSchema.index({ employeeUsername: 1, date: -1 });
 
 export default mongoose.model('EmployeeAttendance', employeeAttendanceSchema);

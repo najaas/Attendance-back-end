@@ -5,6 +5,10 @@ import { getNextId, getLocalDateString, docToObject } from '../utils/helpers.js'
 export const getTasks = async (req, res) => {
   try {
     const requestedDate = String(req.query?.date || '').trim();
+    const lite = String(req.query?.lite || '').trim() === '1';
+    if (lite) res.set('Cache-Control', 'private, max-age=15');
+    const limitNum = Number(req.query?.limit || 0);
+    const limit = Number.isFinite(limitNum) ? Math.max(0, Math.min(limitNum, 2000)) : 0;
     const query = req.user.role === 'admin' ? {} : { assignedToUsername: req.user.username };
     if (req.user.role === 'admin') {
       if (requestedDate) query.taskDate = requestedDate;
@@ -15,7 +19,20 @@ export const getTasks = async (req, res) => {
         query.taskDate = getLocalDateString();
       }
     }
-    const tasks = await Task.find(query).sort({ createdAt: -1 }).lean();
+    let q = Task.find(query).sort({ createdAt: -1 });
+    if (lite) {
+      q = q.select({
+        _id: 1,
+        id: 1,
+        status: 1,
+        title: 1,
+        assignedToUsername: 1,
+        assignedToName: 1,
+        taskDate: 1,
+      });
+    }
+    if (limit > 0) q = q.limit(limit);
+    const tasks = await q.lean();
     return res.json(tasks.map((t) => docToObject(t)));
   } catch (err) {
     return res.status(500).json({ message: err.message });

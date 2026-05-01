@@ -25,4 +25,8 @@ const taskSchema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
+taskSchema.index({ taskDate: 1, createdAt: -1 });
+taskSchema.index({ assignedToUsername: 1, taskDate: 1, createdAt: -1 });
+taskSchema.index({ status: 1, taskDate: 1 });
+
 export default mongoose.model('Task', taskSchema);

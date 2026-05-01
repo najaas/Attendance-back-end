@@ -45,4 +45,8 @@ const fsrSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now, expires: 2592000 } // 2592000s = 30 days
 });
 
+fsrSchema.index({ createdAt: -1 });
+fsrSchema.index({ date: -1 });
+fsrSchema.index({ status: 1, createdAt: -1 });
+
 export default mongoose.model('FSR', fsrSchema);

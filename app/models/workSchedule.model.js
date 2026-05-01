@@ -30,4 +30,8 @@ const workScheduleSchema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
+workScheduleSchema.index({ taskDate: 1, createdAt: -1 });
+workScheduleSchema.index({ assignedToUsername: 1, taskDate: 1, createdAt: -1 });
+workScheduleSchema.index({ status: 1, taskDate: 1 });
+
 export default mongoose.model('WorkSchedule', workScheduleSchema, 'workschedules');

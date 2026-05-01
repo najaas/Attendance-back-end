@@ -53,7 +53,25 @@ export const getFSRs = async (req, res) => {
     // However, just to be strictly bulletproof as requested, let's filter the DB query:
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const fsrs = await FSR.find({ createdAt: { $gte: thirtyDaysAgo } }).sort({ createdAt: -1 });
+    const limitNum = Number(req.query?.limit || 0);
+    const limit = Number.isFinite(limitNum) ? Math.max(0, Math.min(limitNum, 2000)) : 0;
+    const lite = String(req.query?.lite || '').trim() === '1';
+    if (lite) res.set('Cache-Control', 'private, max-age=15');
+    let q = FSR.find({ createdAt: { $gte: thirtyDaysAgo } }).sort({ createdAt: -1 });
+    if (lite) {
+      q = q.select({
+        _id: 1,
+        id: 1,
+        project: 1,
+        jobRef: 1,
+        date: 1,
+        techName: 1,
+        status: 1,
+        createdAt: 1,
+      });
+    }
+    if (limit > 0) q = q.limit(limit);
+    const fsrs = await q;
     res.status(200).json(fsrs);
   } catch (error) {
     res.status(500).json({ message: 'Failed to get FSRs', error: error.message });

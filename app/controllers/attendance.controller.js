@@ -195,7 +195,37 @@ export const getEmployeeAttendanceHistory = async (req, res) => {
 
 export const getAllEmployeeAttendance = async (req, res) => {
   try {
-    const raw = await EmployeeAttendance.find().sort({ date: -1 }).limit(500).lean();
+    const todayLocal = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    const rawDate = String(req.query?.date || '').trim().toLowerCase();
+    const limitNum = Number(req.query?.limit || 500);
+    const limit = Number.isFinite(limitNum) ? Math.max(1, Math.min(limitNum, 2000)) : 500;
+    let query = {};
+    if (rawDate && rawDate !== 'all') {
+      query = { date: rawDate === 'today' ? todayLocal() : rawDate };
+    }
+    let q = EmployeeAttendance.find(query).sort({ date: -1, createdAt: -1 }).limit(limit);
+    if (lite) {
+      q = q.select({
+        _id: 1,
+        id: 1,
+        date: 1,
+        employeeUsername: 1,
+        employeeName: 1,
+        officeEntryTime: 1,
+        officeExitTime: 1,
+        projectName: 1,
+        site1ProjectName: 1,
+        site2ProjectName: 1,
+        site3ProjectName: 1,
+        site4ProjectName: 1,
+        site5ProjectName: 1,
+        site6ProjectName: 1,
+      });
+    }
+    const raw = await q.lean();
     const processed = raw.map(docToObject);
     return res.json(processed);
   } catch (err) {
@@ -320,3 +350,5 @@ export const deleteEmployeeAttendance = async (req, res) => {
     return res.status(500).json({ message: err.message });
   }
 };
+    const lite = String(req.query?.lite || '').trim() === '1';
+    if (lite) res.set('Cache-Control', 'private, max-age=15');
