@@ -19,7 +19,9 @@ export const collectPushTokensForUsers = async (usernames = []) => {
   const uniqueUsers = Array.from(new Set((usernames || []).map((u) => String(u || '').trim()).filter(Boolean)));
   if (uniqueUsers.length === 0) return [];
 
-  const employees = await Employee.find({ username: { $in: uniqueUsers } })
+  const employees = await Employee.find({ 
+    username: { $in: uniqueUsers.map(u => new RegExp(`^${u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')) } 
+  })
     .select({ username: 1, pushTokens: 1 })
     .lean();
 
@@ -121,6 +123,7 @@ export const notifyScheduleAssigned = async ({ schedules = [] }) => {
       sound: 'default',
       title: 'New Schedule Assigned',
       body,
+      channelId: 'default',
       data: {
         screen: 'schedule',
         taskDate: taskDate || null,

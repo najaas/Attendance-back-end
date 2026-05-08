@@ -252,8 +252,13 @@ export const importData = async (req, res) => {
             }
         }
         if (docs.length > 0) {
-            await WorkSchedule.insertMany(docs);
+            const created = await WorkSchedule.insertMany(docs);
             count = docs.length;
+            try {
+                await notifyScheduleAssigned({ schedules: created.map(s => s.toObject ? s.toObject() : s) });
+            } catch (err) {
+                console.error('[push] import notify failed:', err.message);
+            }
         }
     }
 
