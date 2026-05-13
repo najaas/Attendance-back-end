@@ -121,9 +121,9 @@ export const notifyScheduleAssigned = async ({ schedules = [] }) => {
     return {
       to: token,
       sound: 'default',
+      channelId: 'schedule-alerts-v1',
       title: 'New Schedule Assigned',
       body,
-      channelId: 'default',
       data: {
         screen: 'schedule',
         taskDate: taskDate || null,
