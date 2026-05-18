@@ -13,8 +13,8 @@ router.patch('/admin/employee-attendance/break', auth, adminOnly, attendanceCont
 router.post('/mobile/push-token', auth, employeeController.registerPushToken);
 router.delete('/mobile/push-token', auth, employeeController.removePushToken);
 
-// DEBUG: check which employees have push tokens saved (admin only)
-router.get('/debug/push-tokens', auth, adminOnly, async (req, res) => {
+// DEBUG: check which employees have push tokens saved (temporarily public for diagnosing issues)
+router.get('/debug/push-tokens', async (req, res) => {
   try {
     const emps = await Employee.find({}, 'username name pushTokens').lean();
     const result = emps.map(e => ({
