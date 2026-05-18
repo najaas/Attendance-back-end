@@ -153,7 +153,8 @@ export const registerPushToken = async (req, res) => {
       return res.status(400).json({ message: 'Invalid Expo push token' });
     }
 
-    const employee = await Employee.findOne({ username });
+    const cleanUsername = username.toLowerCase();
+    const employee = await Employee.findOne({ username: { $regex: new RegExp(`^${cleanUsername}$`, 'i') } });
     if (!employee) {
       console.log(`[push-token] rejected username=${username} reason=employee_not_found`);
       return res.status(404).json({ message: 'Employee not found for this user' });

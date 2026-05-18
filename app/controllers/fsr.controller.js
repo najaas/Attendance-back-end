@@ -8,17 +8,19 @@ export const saveFSR = async (req, res) => {
     if (!data.techName && req.user && req.user.name) {
       data.techName = req.user.name;
     }
-    if (data.techSignature) {
-      data.status = 'completed';
-    } else if (!data.status) {
-      data.status = 'pending';
+    const requestedStatus = String(data.status || '').trim().toLowerCase();
+    if (req.user?.role === 'admin') {
+      data.status = ['pending', 'processing', 'completed'].includes(requestedStatus) ? requestedStatus : 'pending';
+    } else {
+      // Employee submission should move to processing; only admin can mark completed.
+      data.status = 'processing';
     }
 
     const newFsr = new FSR(data);
     await newFsr.save();
 
-    // Link and Update Schedule Status to 'completed' if FSR is completed
-    if (data.status === 'completed') {
+    // Link and update schedule status based on FSR state.
+    if (['processing', 'completed', 'pending'].includes(data.status)) {
       try {
         const today = getLocalDateString();
         const query = {
@@ -31,10 +33,10 @@ export const saveFSR = async (req, res) => {
         
         const schedules = await WorkSchedule.find(query);
         for (const schedule of schedules) {
-          schedule.status = 'completed';
+          schedule.status = data.status;
           schedule.statusDate = today;
           await schedule.save();
-          console.log(`[Status] Marked schedule ${schedule.id} as completed for ${schedule.assignedToUsername}`);
+          console.log(`[Status] Marked schedule ${schedule.id} as ${data.status} for ${schedule.assignedToUsername}`);
         }
       } catch (schedErr) {
         console.error('[Status] Failed to update schedule status:', schedErr.message);
@@ -91,9 +93,14 @@ export const updateFSR = async (req, res) => {
       }
     }
 
-    // Auto-update status to completed if signature is present, unless explicitly set to pending
-    if (updateData.techSignature && updateData.status !== 'pending') {
-      updateData.status = 'completed';
+    const requestedStatus = String(updateData.status || '').trim().toLowerCase();
+    if (req.user?.role === 'admin') {
+      if (requestedStatus) {
+        updateData.status = ['pending', 'processing', 'completed'].includes(requestedStatus) ? requestedStatus : 'pending';
+      }
+    } else {
+      // Employee updates keep FSR in processing until admin verifies/completes.
+      updateData.status = 'processing';
     }
 
     const updated = await FSR.findByIdAndUpdate(id, updateData, { returnDocument: 'after' });
@@ -113,11 +120,8 @@ export const updateFSR = async (req, res) => {
         
         const schedules = await WorkSchedule.find(query);
         for (const schedule of schedules) {
-          if (updated.status === 'completed') {
-            schedule.status = 'completed';
-            schedule.statusDate = today;
-          } else if (updated.status === 'pending') {
-            schedule.status = 'pending';
+          if (['pending', 'processing', 'completed'].includes(updated.status)) {
+            schedule.status = updated.status;
             schedule.statusDate = today;
           }
           await schedule.save();
