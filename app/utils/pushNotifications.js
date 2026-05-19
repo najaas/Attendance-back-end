@@ -16,9 +16,7 @@ const chunkArray = (items, size) => {
 };
 
 export const collectPushTokensForUsers = async (usernames = []) => {
-  const uniqueUsers = Array.from(
-    new Set((usernames || []).map((u) => String(u || '').trim().toLowerCase()).filter(Boolean))
-  );
+  const uniqueUsers = Array.from(new Set((usernames || []).map((u) => String(u || '').trim()).filter(Boolean)));
   if (uniqueUsers.length === 0) return [];
 
   const employees = await Employee.find({ 
@@ -97,7 +95,7 @@ export const notifyScheduleAssigned = async ({ schedules = [] }) => {
 
   const byUser = new Map();
   schedules.forEach((row) => {
-    const username = String(row.assignedToUsername || '').trim().toLowerCase();
+    const username = String(row.assignedToUsername || '').trim();
     if (!username) return;
     if (!byUser.has(username)) byUser.set(username, []);
     byUser.get(username).push(row);
@@ -110,12 +108,8 @@ export const notifyScheduleAssigned = async ({ schedules = [] }) => {
   const tokens = await collectPushTokensForUsers(users);
   if (tokens.length === 0) return { sent: 0 };
 
-  const messages = [];
-  tokens.forEach(({ username, token }) => {
-    const lowerUser = String(username).trim().toLowerCase();
-    const rows = byUser.get(lowerUser) || [];
-    if (rows.length === 0) return;
-
+  const messages = tokens.map(({ username, token }) => {
+    const rows = byUser.get(username) || [];
     const first = rows[0] || {};
     const taskDate = String(first.taskDate || '').trim();
     const project = String(first.projectName || first.title || 'Work Schedule').trim();
@@ -124,7 +118,7 @@ export const notifyScheduleAssigned = async ({ schedules = [] }) => {
       ? `${count} schedules assigned. First: ${project}${taskDate ? ` (${taskDate})` : ''}`
       : `${project}${taskDate ? ` on ${taskDate}` : ''}`;
 
-    messages.push({
+    return {
       to: token,
       sound: 'default',
       channelId: 'schedule-alerts-v2',
@@ -134,7 +128,7 @@ export const notifyScheduleAssigned = async ({ schedules = [] }) => {
         screen: 'schedule',
         taskDate: taskDate || null,
       },
-    });
+    };
   });
 
   return sendExpoNotifications(messages);
