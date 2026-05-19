@@ -19,8 +19,13 @@ export const collectPushTokensForUsers = async (usernames = []) => {
   const uniqueUsers = Array.from(new Set((usernames || []).map((u) => String(u || '').trim()).filter(Boolean)));
   if (uniqueUsers.length === 0) return [];
 
+  const queryRegexes = uniqueUsers.map(u => new RegExp(`^${u.replace(/[.*+?^${()|[\\]\\\\]/g, '\\$&')}$`, 'i'));
   const employees = await Employee.find({ 
-    username: { $in: uniqueUsers.map(u => new RegExp(`^${u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')) } 
+    $or: [
+      { username: { $in: queryRegexes } },
+      { shortName: { $in: queryRegexes } },
+      { name: { $in: queryRegexes } }
+    ]
   })
     .select({ username: 1, pushTokens: 1 })
     .lean();
