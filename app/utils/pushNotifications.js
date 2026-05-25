@@ -1,5 +1,6 @@
 import Employee from '../models/employee.model.js';
 import https from 'https';
+import { findEmployeesByCodes, usernameRegex } from './employeeResolver.js';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const CHUNK_SIZE = 100;
@@ -19,16 +20,20 @@ export const collectPushTokensForUsers = async (usernames = []) => {
   const uniqueUsers = Array.from(new Set((usernames || []).map((u) => String(u || '').trim()).filter(Boolean)));
   if (uniqueUsers.length === 0) return [];
 
-  const queryRegexes = uniqueUsers.map(u => new RegExp(`^${u.replace(/[.*+?^${()|[\\]\\\\]/g, '\\$&')}$`, 'i'));
-  const employees = await Employee.find({ 
-    $or: [
-      { username: { $in: queryRegexes } },
-      { shortName: { $in: queryRegexes } },
-      { name: { $in: queryRegexes } }
-    ]
+  const byCode = await findEmployeesByCodes(uniqueUsers);
+  const byUsername = await Employee.find({
+    username: { $in: uniqueUsers.map((u) => usernameRegex(u)) },
   })
-    .select({ username: 1, pushTokens: 1 })
+    .select({ username: 1, employeeCode: 1, pushTokens: 1 })
     .lean();
+  const seen = new Set();
+  const employees = [];
+  [...byCode, ...byUsername].forEach((emp) => {
+    const key = String(emp.username || '').toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    employees.push(emp);
+  });
 
   const tokens = [];
   employees.forEach((emp) => {

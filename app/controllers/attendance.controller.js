@@ -107,11 +107,16 @@ export const logEmployeeAttendance = async (req, res) => {
     const data = req.body;
     if (!data.date || !data.officeEntryTime) return res.status(400).json({ message: 'Date and entry time required' });
     
+    // Fetch employee to get employeeCode
+    const employee = await Employee.findOne({ username: req.user.username }).lean();
+    const employeeCode = req.user.employeeCode || employee?.employeeCode || '';
+
     // Build the payload
     const payload = {
       date: data.date,
       employeeUsername: req.user.username,
-      employeeName: req.user.name || req.user.username,
+      employeeName: employee?.name || req.user.name || req.user.username,
+      employeeCode,
       officeEntryTime: data.officeEntryTime,
       officeExitTime: data.officeExitTime || '',
       jobNumber: String(data.jobNumber || '').trim(),

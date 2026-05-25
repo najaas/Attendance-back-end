@@ -1,6 +1,7 @@
 import Task from '../models/task.model.js';
 import Employee from '../models/employee.model.js';
 import { getNextId, getLocalDateString, docToObject } from '../utils/helpers.js';
+import { findEmployeeByCode, findEmployeesByCodes, toAssigneePayload } from '../utils/employeeResolver.js';
 
 export const getTasks = async (req, res) => {
   try {
@@ -28,6 +29,7 @@ export const getTasks = async (req, res) => {
         title: 1,
         assignedToUsername: 1,
         assignedToName: 1,
+        assignedToEmployeeCode: 1,
         taskDate: 1,
       });
     }
@@ -52,16 +54,17 @@ export const addTask = async (req, res) => {
 
     let assignees = [];
     if (assignMode === 'all') {
-      const employees = await Employee.find().sort({ id: 1 }).select({ username: 1, name: 1 }).lean();
-      assignees = employees.map(e => ({ username: e.username, name: e.name }));
+      const employees = await Employee.find().sort({ id: 1 }).select({ username: 1, name: 1, employeeCode: 1 }).lean();
+      assignees = employees.map(toAssigneePayload);
     } else if (assignMode === 'multiple') {
-      const usernames = Array.isArray(assignedToUsernames) ? assignedToUsernames : [];
-      const employees = await Employee.find({ username: { $in: usernames } }).select({ username: 1, name: 1 }).lean();
-      assignees = employees.map(e => ({ username: e.username, name: e.name }));
+      const codes = Array.isArray(assignedToUsernames) ? assignedToUsernames : [];
+      const employees = await findEmployeesByCodes(codes);
+      if (employees.length === 0) return res.status(404).json({ message: 'No employees found for given IDs' });
+      assignees = employees.map(toAssigneePayload);
     } else {
-      const emp = await Employee.findOne({ username: assignMode }).select({ username: 1, name: 1 }).lean();
-      if (!emp) return res.status(404).json({ message: 'Employee not found' });
-      assignees = [{ username: emp.username, name: emp.name }];
+      const emp = await findEmployeeByCode(assignMode);
+      if (!emp) return res.status(404).json({ message: 'Employee ID not found' });
+      assignees = [toAssigneePayload(emp)];
     }
 
     const firstId = await getNextId(Task, 0);
@@ -74,6 +77,7 @@ export const addTask = async (req, res) => {
       adminNote: String(adminNote || '').trim(),
       assignedToUsername: a.username,
       assignedToName: a.name,
+      assignedToEmployeeCode: a.employeeCode || '',
       assignedByUsername: req.user.username,
       status: 'pending'
     }));

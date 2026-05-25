@@ -14,6 +14,8 @@ import commonRoutes from './app/routes/common.routes.js';
 import foodAllowanceRoutes from './app/routes/foodAllowance.routes.js';
 import robotRoutes from './app/routes/robotRoutes.js';
 import fsrRoutes from './app/routes/fsr.routes.js';
+import satReportRoutes from './app/routes/satReport.routes.js';
+
 
 
 
@@ -77,6 +79,8 @@ app.use('/api', commonRoutes);
 app.use('/api/food', foodAllowanceRoutes);
 app.use('/api/robot', robotRoutes);
 app.use('/api/fsr', fsrRoutes);
+app.use('/api/sat-reports', satReportRoutes);
+
 
 
 

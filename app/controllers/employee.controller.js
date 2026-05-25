@@ -57,11 +57,11 @@ export const getEmployees = async (req, res) => {
 export const addEmployee = async (req, res) => {
   try {
     const { name, shortName, username, password, employeeCode, designation, companyNumber, personalNumber, indiaNumber } = req.body;
-    if (!name || !username || !password || !employeeCode) return res.status(400).json({ message: 'All fields required' });
+    if (!name || !password || !employeeCode) return res.status(400).json({ message: 'Name, Employee ID and password required' });
 
-    const cleanUsername = String(username).trim();
     const cleanName = String(name).trim();
     const cleanEmployeeCode = String(employeeCode).trim();
+    const cleanUsername = String(username || cleanEmployeeCode).trim();
     const userExists = await User.findOne({ username: cleanUsername }).lean();
     if (userExists) return res.status(400).json({ message: 'Username exists' });
     const codeExists = await Employee.findOne({ employeeCode: cleanEmployeeCode }).lean();
@@ -206,24 +206,33 @@ export const importData = async (req, res) => {
     if (type === 'employee-attendance') {
       for (const row of rows) {
         const date = String(row.Date || row.date || '').trim();
+        const empCode = String(row['Employee Code'] || row.employeeCode || '').trim();
         const empName = String(row['Employee Name'] || row.employeeName || '').trim();
-        if (date && empName) {
-          const emp = await Employee.findOne({ name: empName }).lean();
-          if (emp) {
-            const payload = {
-              date,
-              employeeUsername: emp.username,
-              employeeName: emp.name,
-              officeEntryTime: String(row['Office Entry'] || '').trim(),
-              officeExitTime: String(row['Office Exit'] || '').trim(),
-              jobNumber: String(row['Job No.'] || '').trim(),
-            };
-            Object.keys(row).forEach((k) => {
-              if (k.toLowerCase().includes('site')) payload[`site${k.replace(/\s+/g, '')}`] = row[k];
-            });
-            await EmployeeAttendance.updateOne({ date, employeeUsername: emp.username }, { $set: payload }, { upsert: true });
-            count++;
-          }
+        
+        let emp = null;
+        // Try to match by employeeCode first, then by name
+        if (empCode) {
+          emp = await Employee.findOne({ employeeCode: empCode }).lean();
+        }
+        if (!emp && empName) {
+          emp = await Employee.findOne({ employeeCode: empName }).lean();
+        }
+        
+        if (date && emp) {
+          const payload = {
+            date,
+            employeeUsername: emp.username,
+            employeeName: emp.name,
+            employeeCode: emp.employeeCode,
+            officeEntryTime: String(row['Office Entry'] || '').trim(),
+            officeExitTime: String(row['Office Exit'] || '').trim(),
+            jobNumber: String(row['Job No.'] || '').trim(),
+          };
+          Object.keys(row).forEach((k) => {
+            if (k.toLowerCase().includes('site')) payload[`site${k.replace(/\s+/g, '')}`] = row[k];
+          });
+          await EmployeeAttendance.updateOne({ date, employeeUsername: emp.username }, { $set: payload }, { upsert: true });
+          count++;
         }
       }
     } else if (type === 'schedule') {
@@ -231,8 +240,11 @@ export const importData = async (req, res) => {
         const docs = [];
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
-            const techUsername = String(row['Technician Username'] || '').trim();
-            const emp = await Employee.findOne({ username: techUsername }).lean();
+            const techId = String(row['Employee Code'] || row['Employee ID'] || row['Technician ID'] || row['Technician Username'] || '').trim();
+            const emp = techId
+              ? (await Employee.findOne({ employeeCode: techId }).lean()
+                || await Employee.findOne({ username: techId }).lean())
+              : null;
             if (emp) {
                 docs.push({
                     id: firstId + i,
@@ -247,6 +259,7 @@ export const importData = async (req, res) => {
                     assignedToUsername: emp.username,
                     assignedToName: emp.name,
                     assignedToShortName: emp.shortName || '',
+                    assignedToEmployeeCode: emp.employeeCode || '',
                     assignedByUsername: req.user.username,
                     status: 'pending'
                 });

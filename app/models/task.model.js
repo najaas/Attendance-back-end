@@ -15,6 +15,7 @@ const taskSchema = new mongoose.Schema(
     vehicle: { type: String, default: '', trim: true },
     assignedToUsername: { type: String, required: true, trim: true, index: true },
     assignedToName: { type: String, required: true, trim: true },
+    assignedToEmployeeCode: { type: String, trim: true, default: '' },
     assignedByUsername: { type: String, required: true, trim: true },
     status: { type: String, enum: ['pending', 'completed'], default: 'pending', index: true },
     completionNote: { type: String, default: '', trim: true },

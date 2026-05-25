@@ -4,6 +4,7 @@ const employeeAttendanceSchema = new mongoose.Schema(
   {
     date: { type: String, required: true, index: true },
     employeeUsername: { type: String, required: true, trim: true, index: true },
+    employeeCode: { type: String, trim: true, default: '', index: true },
     employeeName: { type: String, required: true, trim: true },
     employeeShortName: { type: String, trim: true, default: '' },
     officeEntryTime: { type: String, required: true, trim: true },

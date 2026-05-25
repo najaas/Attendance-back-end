@@ -3,6 +3,7 @@ import WorkSchedule from '../models/workSchedule.model.js';
 import Employee from '../models/employee.model.js';
 import { getNextId, getLocalDateString, docToObject } from '../utils/helpers.js';
 import { notifyScheduleAssigned } from '../utils/pushNotifications.js';
+import { findEmployeeByCode, findEmployeesByCodes, toAssigneePayload } from '../utils/employeeResolver.js';
 
 export const getSchedules = async (req, res) => {
   try {
@@ -41,6 +42,7 @@ export const getSchedules = async (req, res) => {
         vehicle: 1,
         assignedToUsername: 1,
         assignedToName: 1,
+        assignedToEmployeeCode: 1,
         status: 1,
         createdAt: 1,
       });
@@ -94,18 +96,17 @@ export const addSchedule = async (req, res) => {
 
     let assignees = [];
     if (assignMode === 'all') {
-      const employees = await Employee.find().sort({ id: 1 }).select({ username: 1, name: 1, shortName: 1 }).lean();
-      assignees = employees.map(e => ({ username: e.username, name: e.name, shortName: e.shortName }));
+      const employees = await Employee.find().sort({ id: 1 }).select({ username: 1, name: 1, shortName: 1, employeeCode: 1 }).lean();
+      assignees = employees.map(toAssigneePayload);
     } else if (assignMode === 'multiple') {
-      const usernames = Array.isArray(assignedToUsernames) ? assignedToUsernames : [];
-      const regexes = usernames.map(u => new RegExp(`^${u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
-      const employees = await Employee.find({ $or: [{ username: { $in: regexes } }, { shortName: { $in: regexes } }, { name: { $in: regexes } }] }).select({ username: 1, name: 1, shortName: 1 }).lean();
-      assignees = employees.map(e => ({ username: e.username, name: e.name, shortName: e.shortName }));
+      const codes = Array.isArray(assignedToUsernames) ? assignedToUsernames : [];
+      const employees = await findEmployeesByCodes(codes);
+      if (employees.length === 0) return res.status(404).json({ message: 'No employees found for given IDs' });
+      assignees = employees.map(toAssigneePayload);
     } else {
-      const regexAssign = new RegExp(`^${assignMode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
-      const emp = await Employee.findOne({ $or: [{ username: regexAssign }, { shortName: regexAssign }, { name: regexAssign }] }).select({ username: 1, name: 1, shortName: 1 }).lean();
-      if (!emp) return res.status(404).json({ message: 'Employee not found' });
-      assignees = [{ username: emp.username, name: emp.name, shortName: emp.shortName }];
+      const emp = await findEmployeeByCode(assignMode);
+      if (!emp) return res.status(404).json({ message: 'Employee ID not found' });
+      assignees = [toAssigneePayload(emp)];
     }
 
     const firstId = await getNextId(WorkSchedule, 0);
@@ -118,9 +119,10 @@ export const addSchedule = async (req, res) => {
       location, site: (site || 'All Sites').trim(), vehicle,
       officeTime, siteTime,
       remarks,
-      assignedToUsername: a.username, 
+      assignedToUsername: a.username,
       assignedToName: a.name,
       assignedToShortName: a.shortName || '',
+      assignedToEmployeeCode: a.employeeCode || '',
       assignedByUsername: req.user.username, status: 'pending', statusDate: taskDate || getLocalDateString()
     }));
 

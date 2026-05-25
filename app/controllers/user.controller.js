@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/user.model.js';
-import Employee from '../models/employee.model.js';
 import { getNextId } from '../utils/helpers.js';
+import { findEmployeeByUsername, resolveLoginUser } from '../utils/employeeResolver.js';
 
 // Simple in-memory login rate limiter (per IP) — max 10 attempts per 15 min
 const loginAttempts = new Map();
@@ -30,33 +30,26 @@ export const login = async (req, res) => {
 
   try {
     const { username, password } = req.body;
-    const user = await User.findOne({ username: String(username).trim() }).lean();
-    if (!user || password !== user.password) {
+    const resolved = await resolveLoginUser(username);
+    if (!resolved || password !== resolved.user.password) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+    const { user, employee: emp } = resolved;
 
-    // Lookup employee profile for designation (case-insensitive for old data)
     let designation = '';
     let shortName = user.shortName || '';
-    if (user.role === 'employee') {
-      let emp = await Employee.findOne({ username: { $regex: new RegExp(`^${user.username}$`, 'i') } }).lean();
-      
-      // Fallback: search by name if username lookup fails
-      if (!emp && user.name) {
-        emp = await Employee.findOne({ name: { $regex: new RegExp(`^${user.name}$`, 'i') } }).lean();
-      }
-
-      if (emp) {
-        designation = emp.designation || '';
-        if (!shortName) shortName = emp.shortName || '';
-      }
+    let employeeCode = '';
+    if (emp) {
+      designation = emp.designation || '';
+      employeeCode = emp.employeeCode || '';
+      if (!shortName) shortName = emp.shortName || '';
     }
 
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role, name: user.name || user.username, shortName, designation },
+      { id: user.id, username: user.username, role: user.role, name: user.name || user.username, shortName, designation, employeeCode },
       process.env.JWT_SECRET
     );
-    return res.json({ token, role: user.role, name: user.name || user.username, shortName, designation });
+    return res.json({ token, role: user.role, name: user.name || user.username, shortName, designation, employeeCode });
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ message: 'Login failed' });
@@ -106,16 +99,12 @@ export const getMe = async (req, res) => {
     
     let designation = '';
     let shortName = user.shortName || '';
+    let employeeCode = '';
     if (user.role === 'employee') {
-      let emp = await Employee.findOne({ username: { $regex: new RegExp(`^${user.username}$`, 'i') } }).lean();
-      
-      // Fallback: search by name if username lookup fails
-      if (!emp && user.name) {
-        emp = await Employee.findOne({ name: { $regex: new RegExp(`^${user.name}$`, 'i') } }).lean();
-      }
-
+      const emp = await findEmployeeByUsername(user.username);
       if (emp) {
         designation = emp.designation || '';
+        employeeCode = emp.employeeCode || '';
         if (!shortName) shortName = emp.shortName || '';
       }
     }
@@ -125,7 +114,8 @@ export const getMe = async (req, res) => {
       role: user.role, 
       name: user.name, 
       shortName,
-      designation 
+      designation,
+      employeeCode
     });
   } catch (err) {
     return res.status(500).json({ message: err.message });
