@@ -1,7 +1,7 @@
 import Task from '../models/task.model.js';
 import Employee from '../models/employee.model.js';
 import { getNextId, getLocalDateString, docToObject } from '../utils/helpers.js';
-import { findEmployeeByCode, findEmployeesByCodes, toAssigneePayload } from '../utils/employeeResolver.js';
+import { findEmployeeByCode, findEmployeesByIds, toAssigneePayload } from '../utils/employeeResolver.js';
 
 export const getTasks = async (req, res) => {
   try {
@@ -56,7 +56,7 @@ export const addTask = async (req, res) => {
       assignees = employees.map(toAssigneePayload);
     } else if (assignMode === 'multiple') {
       const codes = Array.isArray(assignedToEmployeeIds) ? assignedToEmployeeIds : [];
-      const employees = await findEmployeesByCodes(codes);
+      const employees = await findEmployeesByIds(codes);
       if (employees.length === 0) return res.status(404).json({ message: 'No employees found for given IDs' });
       assignees = employees.map(toAssigneePayload);
     } else {
