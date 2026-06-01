@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import User from '../models/user.model.js';
 import Employee from '../models/employee.model.js';
+import EmployeeAttendance from '../models/employeeAttendance.model.js';
 
 export const connectDB = async () => {
   const MONGODB_URI = process.env.MONGODB_URI;
@@ -13,6 +14,7 @@ export const connectDB = async () => {
     console.log('MongoDB Connected.');
     await ensureAdminExists();
     await backfillEmployeesFromUsersIfNeeded();
+    await syncAttendanceIndexes();
   } catch (err) {
     console.error('MongoDB Connection Error:', err.message);
     process.exit(1);
@@ -63,4 +65,16 @@ async function backfillEmployeesFromUsersIfNeeded() {
 
   await Employee.insertMany(docs, { ordered: false });
   console.log(`Backfilled ${docs.length} employees.`);
+}
+
+async function syncAttendanceIndexes() {
+  try {
+    const fix = await import('../utils/attendanceDbFix.js');
+    fix.resetLegacyIndexCache();
+    await fix.backfillAttendanceEmployeeIds();
+    await fix.ensureLegacyAttendanceIndexRemoved();
+    await EmployeeAttendance.syncIndexes();
+  } catch (err) {
+    console.warn('[syncAttendanceIndexes]', err.message);
+  }
 }

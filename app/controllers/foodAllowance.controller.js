@@ -1,6 +1,96 @@
 import FoodAllowance from '../models/foodAllowance.model.js';
 import EmployeeAttendance from '../models/employeeAttendance.model.js';
-import Employee from '../models/employee.model.js';
+import WorkSchedule from '../models/workSchedule.model.js';
+import {
+  buildEmployeeResolverByEmployeeCode,
+  findEmployeeByCode,
+} from '../utils/employeeResolver.js';
+
+const cleanLabel = (v) => {
+  const s = String(v || '').trim();
+  if (!s || s === '-' || s === '—') return '';
+  return s;
+};
+
+const formatScheduleProject = (sch) => {
+  const job = cleanLabel(sch?.jobNumber);
+  const proj = cleanLabel(sch?.projectName);
+  if (job && proj) return `${job} - ${proj}`;
+  return proj || job || '';
+};
+
+/** Pull project names from every site/round field on an attendance document. */
+function collectProjectsAndJobsFromAttendance(att) {
+  const projects = new Set();
+  const jobNumbers = new Set();
+
+  const addProject = (v) => {
+    const s = cleanLabel(v);
+    if (s) projects.add(s);
+  };
+  const addJob = (v) => {
+    const s = cleanLabel(v);
+    if (s) jobNumbers.add(s);
+  };
+
+  addProject(att.projectName);
+  addJob(att.jobNumber);
+
+  for (let i = 1; i <= 6; i++) {
+    addProject(att[`site${i}ProjectName`]);
+    addProject(att[`site${i}Location`]);
+    addJob(att[`site${i}JobNumber`]);
+  }
+
+  for (const prefix of ['s2_', 's3_', 's4_', 's5_']) {
+    for (let i = 1; i <= 6; i++) {
+      addProject(att[`${prefix}site${i}ProjectName`]);
+      addProject(att[`${prefix}site${i}Location`]);
+      addJob(att[`${prefix}site${i}JobNumber`]);
+    }
+  }
+
+  for (const [key, val] of Object.entries(att || {})) {
+    if (/projectname/i.test(key)) addProject(val);
+    if (/jobnumber/i.test(key) && !/submit/i.test(key)) addJob(val);
+  }
+
+  return { projects, jobNumbers };
+}
+
+/** When attendance has no site project, use that day's deploy schedule for the employee. */
+async function collectProjectsFromSchedule(att) {
+  const projects = new Set();
+  const jobNumbers = new Set();
+  const date = att?.date;
+  if (!date) return { projects, jobNumbers };
+
+  const code = cleanLabel(att.employeeCode);
+  const or = [];
+  if (code) {
+    or.push({ assignedToEmployeeCode: code });
+    or.push({ assignedToEmployeeCode: { $regex: new RegExp(`^${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } });
+  }
+
+  const emp = code ? await findEmployeeByCode(code) : null;
+  if (emp?.id != null) or.push({ assignedToEmployeeId: emp.id });
+  if (att.employeeId != null) or.push({ assignedToEmployeeId: att.employeeId });
+
+  if (or.length === 0) return { projects, jobNumbers };
+
+  const schedules = await WorkSchedule.find({ taskDate: date, $or: or })
+    .select({ projectName: 1, jobNumber: 1 })
+    .lean();
+
+  for (const sch of schedules) {
+    const label = formatScheduleProject(sch);
+    if (label) projects.add(label);
+    const job = cleanLabel(sch.jobNumber);
+    if (job) jobNumbers.add(job);
+  }
+
+  return { projects, jobNumbers };
+}
 
 // Constant thresholds
 const THR_BREAKFAST = "06:30";
@@ -60,7 +150,6 @@ export const getFoodReport = async (req, res) => {
       date: { $gte: from, $lte: to }
     }).lean();
 
-    // 3. Remove employeeCode fetching since frontend will map by employeeId.
     const report = [];
     const overrideMap = new Map();
     overrides.forEach(ov => overrideMap.set(`${ov.date}_${ov.employeeId}`, ov));
@@ -90,11 +179,12 @@ export const getFoodReport = async (req, res) => {
         let b = 0, l = 0, d = 0;
         
         let hasB = false, hasL = false, hasD = false;
-        const jobNumbers = new Set();
-        const projects = new Set();
+        const fromAtt = collectProjectsAndJobsFromAttendance(att);
+        const jobNumbers = fromAtt.jobNumbers;
+        const projects = fromAtt.projects;
         const timeLog = [];
 
-        const processRound = (entry, exit, sourceAtt, pLabel = "") => {
+        const processRound = (entry, exit, pLabel = "") => {
             if (!entry) return;
             const effectiveExit = exit || "00:00";
             
@@ -108,36 +198,23 @@ export const getFoodReport = async (req, res) => {
             if (workingD) hasD = true;
 
             timeLog.push(`${pLabel}${entry}-${effectiveExit}`);
-
-            // Collect job numbers/projects
-            if (sourceAtt === att) {
-                if (att.jobNumber) jobNumbers.add(String(att.jobNumber));
-                if (att.projectName) projects.add(String(att.projectName));
-                for (let i = 1; i <= 6; i++) {
-                    if (att[`site${i}JobNumber`]) jobNumbers.add(String(att[`site${i}JobNumber`]));
-                    const pName = att[`site${i}ProjectName`] || att[`site${i}Location`];
-                    if (pName) projects.add(String(pName));
-                }
-            }
         };
 
         // R1
-        processRound(att.officeEntryTime, att.officeExitTime, att, "R1:");
+        processRound(att.officeEntryTime, att.officeExitTime, "R1:");
 
         // R2 - R5
         ['s2_', 's3_', 's4_', 's5_'].forEach((p, idx) => {
             const entry = att[`${p}officeEntryTime`];
             const exit = att[`${p}officeExitTime`];
-            if (entry) {
-                processRound(entry, exit, {}, `R${idx+2}:`);
-
-                for (let i = 1; i <= 6; i++) {
-                    if (att[`${p}site${i}JobNumber`]) jobNumbers.add(String(att[`${p}site${i}JobNumber`]));
-                    const pName = att[`${p}site${i}ProjectName`] || att[`${p}site${i}Location`];
-                    if (pName) projects.add(String(pName));
-                }
-            }
+            if (entry) processRound(entry, exit, `R${idx + 2}:`);
         });
+
+        if (projects.size === 0) {
+          const fromSchedule = await collectProjectsFromSchedule(att);
+          fromSchedule.projects.forEach((p) => projects.add(p));
+          fromSchedule.jobNumbers.forEach((j) => jobNumbers.add(j));
+        }
 
         if (hasB) b = COST_B;
         if (hasL) l = COST_L;
@@ -152,6 +229,7 @@ export const getFoodReport = async (req, res) => {
           isManual: false,
           date: att.date,
           employeeId: att.employeeId,
+          employeeCode: String(att.employeeCode || '').trim(),
           jobNumber: Array.from(jobNumbers).join(", ") || "—",
           projectName: Array.from(projects).join(", ") || "—",
           breakfast: b,
@@ -165,7 +243,69 @@ export const getFoodReport = async (req, res) => {
       }
     }
 
-    res.status(200).json(report.sort((a,b) => b.date.localeCompare(a.date)));
+    const processedKeys = new Set(report.map((r) => `${r.date}_${r.employeeId}`));
+    for (const ov of overrides) {
+      const key = `${ov.date}_${ov.employeeId}`;
+      if (processedKeys.has(key)) continue;
+      report.push({
+        _id: ov._id,
+        isManual: true,
+        date: ov.date,
+        employeeId: ov.employeeId,
+        jobNumber: ov.jobNumber || '—',
+        projectName: ov.projectName || '—',
+        breakfast: ov.breakfast || 0,
+        lunch: ov.lunch || 0,
+        dinner: ov.dinner || 0,
+        advance: ov.advance || 0,
+        notes: ov.notes || '—',
+        total: ov.total || (ov.breakfast || 0) + (ov.lunch || 0) + (ov.dinner || 0),
+        displayTimes: 'Manual entry (no attendance)',
+      });
+      processedKeys.add(key);
+    }
+
+    const resolveEmp = await buildEmployeeResolverByEmployeeCode();
+
+    const enriched = await Promise.all(report.map(async (row) => {
+      const codeRef = String(row.employeeCode || '').trim();
+      const emp = resolveEmp(codeRef);
+      const name = (emp?.shortName || emp?.name || '').trim();
+      const code = (emp?.employeeCode || codeRef || '').trim();
+
+      let projectName = row.projectName;
+      if (!cleanLabel(projectName)) {
+        const fromSch = await collectProjectsFromSchedule({
+          date: row.date,
+          employeeId: row.employeeId,
+          employeeCode: code,
+        });
+        const labels = [...fromSch.projects];
+        projectName = labels.length ? labels.join(', ') : '—';
+      }
+
+      let jobNumber = row.jobNumber;
+      if (!cleanLabel(jobNumber) || jobNumber === '—') {
+        const fromSch = await collectProjectsFromSchedule({
+          date: row.date,
+          employeeId: row.employeeId,
+          employeeCode: code,
+        });
+        const jobs = [...fromSch.jobNumbers];
+        if (jobs.length) jobNumber = jobs.join(', ');
+      }
+
+      return {
+        ...row,
+        employeeName: name || '—',
+        employeeCode: code || '—',
+        employeeShortName: emp?.shortName || name || '',
+        projectName: cleanLabel(projectName) || '—',
+        jobNumber: cleanLabel(jobNumber) || row.jobNumber || '—',
+      };
+    }));
+
+    res.status(200).json(enriched.sort((a, b) => b.date.localeCompare(a.date)));
   } catch (err) {
     console.error("[FoodReport] Error:", err);
     res.status(500).json({ message: err.message });

@@ -3,7 +3,38 @@ import WorkSchedule from '../models/workSchedule.model.js';
 import Employee from '../models/employee.model.js';
 import { getNextId, getLocalDateString, docToObject } from '../utils/helpers.js';
 import { notifyScheduleAssigned } from '../utils/pushNotifications.js';
-import { findEmployeeByCode, findEmployeesByCodes, toAssigneePayload } from '../utils/employeeResolver.js';
+import { resolveScheduleAssignees, resolveEmployeeForScheduleRow } from '../utils/employeeResolver.js';
+
+async function enrichSchedulesWithEmployeeNames(schedules) {
+  if (!Array.isArray(schedules) || schedules.length === 0) return [];
+
+  const empByKey = new Map();
+  await Promise.all(
+    schedules.map(async (s) => {
+      const key = String(s.assignedToEmployeeCode || s.assignedToEmployeeId || '');
+      if (!key || empByKey.has(key)) return;
+      const emp = await resolveEmployeeForScheduleRow(s);
+      if (emp) empByKey.set(key, emp);
+    })
+  );
+
+  return schedules.map((s) => {
+    const key = String(s.assignedToEmployeeCode || s.assignedToEmployeeId || '');
+    const emp = empByKey.get(key);
+    const display = emp?.shortName || emp?.name || '';
+    return {
+      ...docToObject(s),
+      vehicle: String(s.vehicle || '').trim(),
+      location: String(s.location || '').trim(),
+      customerContact: String(s.customerContact || '').trim(),
+      customerPerson: String(s.customerPerson || '').trim(),
+      assignedToName: emp?.name || display,
+      assignedToShortName: emp?.shortName || display,
+      assignedToEmployeeCode: emp?.employeeCode || '',
+      assignedToUsername: emp?.username || '',
+    };
+  });
+}
 
 export const getSchedules = async (req, res) => {
   try {
@@ -46,13 +77,7 @@ export const getSchedules = async (req, res) => {
       });
     }
     const schedules = await q.lean();
-    return res.json(schedules.map(s => ({
-      ...docToObject(s),
-      vehicle: String(s.vehicle || '').trim(),
-      location: String(s.location || '').trim(),
-      customerContact: String(s.customerContact || '').trim(),
-      customerPerson: String(s.customerPerson || '').trim(),
-    })));
+    return res.json(await enrichSchedulesWithEmployeeNames(schedules));
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
@@ -64,11 +89,12 @@ export const getAllSchedules = async (req, res) => {
     const collection = db.collection('workschedules');
     const schedules = await collection.find({}).sort({ createdAt: -1 }).toArray();
     console.log('[Backend] Direct MongoDB find found', schedules.length, 'records');
-    return res.json(schedules.map(s => {
+    const normalized = schedules.map((s) => {
       const obj = { ...s };
       delete obj._id;
       return obj;
-    }));
+    });
+    return res.json(await enrichSchedulesWithEmployeeNames(normalized));
   } catch (err) {
     console.error('[Backend] Error in getAllSchedules:', err);
     return res.status(500).json({ message: err.message });
@@ -92,19 +118,16 @@ export const addSchedule = async (req, res) => {
 
     if (!title?.trim() || !assignMode) return res.status(400).json({ message: 'Title and assignee required' });
 
-    let assignees = [];
-    if (assignMode === 'all') {
-      const employees = await Employee.find().sort({ id: 1 }).select({ username: 1, name: 1, shortName: 1, employeeCode: 1 }).lean();
-      assignees = employees.map(toAssigneePayload);
-    } else if (assignMode === 'multiple') {
-      const codes = Array.isArray(assignedToEmployeeIds) ? assignedToEmployeeIds : [];
-      const employees = await findEmployeesByCodes(codes);
-      if (employees.length === 0) return res.status(404).json({ message: 'No employees found for given IDs' });
-      assignees = employees.map(toAssigneePayload);
-    } else {
-      const emp = await findEmployeeByCode(assignMode);
-      if (!emp) return res.status(404).json({ message: 'Employee ID not found' });
-      assignees = [toAssigneePayload(emp)];
+    const assignees = await resolveScheduleAssignees(assignMode, assignedToEmployeeIds);
+    if (assignees.length === 0) {
+      return res.status(400).json({
+        message: 'No valid employees selected. Pick staff again or check employee codes in Admin → Employees.',
+      });
+    }
+
+    const assignedBy = Number(req.user?.id);
+    if (!Number.isFinite(assignedBy)) {
+      return res.status(401).json({ message: 'Invalid admin session. Please log in again.' });
     }
 
     const firstId = await getNextId(WorkSchedule, 0);
@@ -118,7 +141,8 @@ export const addSchedule = async (req, res) => {
       officeTime, siteTime,
       remarks,
       assignedToEmployeeId: a.employeeId,
-      assignedByEmployeeId: req.user.id, status: 'pending', statusDate: taskDate || getLocalDateString()
+      assignedToEmployeeCode: a.employeeCode,
+      assignedByEmployeeId: assignedBy, status: 'pending', statusDate: taskDate || getLocalDateString()
     }));
 
     const created = await WorkSchedule.insertMany(docs);

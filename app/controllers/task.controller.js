@@ -1,7 +1,6 @@
 import Task from '../models/task.model.js';
-import Employee from '../models/employee.model.js';
 import { getNextId, getLocalDateString, docToObject } from '../utils/helpers.js';
-import { findEmployeeByCode, findEmployeesByIds, toAssigneePayload } from '../utils/employeeResolver.js';
+import { resolveScheduleAssignees } from '../utils/employeeResolver.js';
 
 export const getTasks = async (req, res) => {
   try {
@@ -50,19 +49,14 @@ export const addTask = async (req, res) => {
     if (!title?.trim()) return res.status(400).json({ message: 'Task title required' });
     if (!assignMode) return res.status(400).json({ message: 'Task assignee required' });
 
-    let assignees = [];
-    if (assignMode === 'all') {
-      const employees = await Employee.find().sort({ id: 1 }).select({ username: 1, name: 1, employeeCode: 1 }).lean();
-      assignees = employees.map(toAssigneePayload);
-    } else if (assignMode === 'multiple') {
-      const codes = Array.isArray(assignedToEmployeeIds) ? assignedToEmployeeIds : [];
-      const employees = await findEmployeesByIds(codes);
-      if (employees.length === 0) return res.status(404).json({ message: 'No employees found for given IDs' });
-      assignees = employees.map(toAssigneePayload);
-    } else {
-      const emp = await findEmployeeByCode(assignMode);
-      if (!emp) return res.status(404).json({ message: 'Employee ID not found' });
-      assignees = [toAssigneePayload(emp)];
+    const assignees = await resolveScheduleAssignees(assignMode, assignedToEmployeeIds);
+    if (assignees.length === 0) {
+      return res.status(400).json({ message: 'No valid employees selected.' });
+    }
+
+    const assignedBy = Number(req.user?.id);
+    if (!Number.isFinite(assignedBy)) {
+      return res.status(401).json({ message: 'Invalid session. Please log in again.' });
     }
 
     const firstId = await getNextId(Task, 0);
@@ -74,7 +68,7 @@ export const addTask = async (req, res) => {
       taskDate: taskDate || getLocalDateString(),
       adminNote: String(adminNote || '').trim(),
       assignedToEmployeeId: a.employeeId,
-      assignedByEmployeeId: req.user.id,
+      assignedByEmployeeId: assignedBy,
       status: 'pending'
     }));
 

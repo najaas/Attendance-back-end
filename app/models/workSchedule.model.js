@@ -18,6 +18,7 @@ const workScheduleSchema = new mongoose.Schema(
     officeTime: { type: String, default: '', trim: true },
     siteTime: { type: String, default: '', trim: true },
     assignedToEmployeeId: { type: Number, required: true, index: true },
+    assignedToEmployeeCode: { type: String, default: '', trim: true, index: true },
     assignedByEmployeeId: { type: Number, required: true },
     status: { type: String, enum: ['starting', 'processing', 'pending', 'completed'], default: 'pending', index: true },
     statusDate: { type: String, default: () => getLocalDateString() },

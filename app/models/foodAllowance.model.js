@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 const FoodAllowanceSchema = new mongoose.Schema({
   date: { type: String, required: true }, // YYYY-MM-DD
   employeeId: { type: Number, required: true },
+  employeeCode: { type: String, default: '', trim: true },
   jobNumber: { type: String },
   projectName: { type: String },
   breakfast: { type: Number, default: 0 },

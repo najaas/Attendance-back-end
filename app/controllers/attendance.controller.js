@@ -1,6 +1,33 @@
 import EmployeeAttendance from '../models/employeeAttendance.model.js';
 import WorkSchedule from '../models/workSchedule.model.js';
 import Employee from '../models/employee.model.js';
+import { findEmployeeByCode, findEmployeeByUsername } from '../utils/employeeResolver.js';
+import {
+  ensureLegacyAttendanceIndexRemoved,
+  repairAttendanceRowForIdentity,
+} from '../utils/attendanceDbFix.js';
+
+async function resolveAttendanceIdentity(req) {
+  let employee = await findEmployeeByUsername(req.user.username);
+  const jwtCode = String(req.user.employeeCode || '').trim();
+  if (!employee && jwtCode) {
+    employee = await findEmployeeByCode(jwtCode);
+  }
+  const employeeCode = String(jwtCode || employee?.employeeCode || '').trim();
+  return { employeeCode, employeeId: req.user.id };
+}
+
+function attendanceRecordFilter(date, identity) {
+  const or = [{ employeeId: identity.employeeId }];
+  if (identity.employeeCode) or.unshift({ employeeCode: identity.employeeCode });
+  return { date, $or: or };
+}
+
+function attendanceHistoryFilter(identity) {
+  const or = [{ employeeId: identity.employeeId }];
+  if (identity.employeeCode) or.unshift({ employeeCode: identity.employeeCode });
+  return { $or: or };
+}
 
 
 function docToObject(doc) {
@@ -103,18 +130,24 @@ export const jobLookup = async (req, res) => {
 };
 
 export const logEmployeeAttendance = async (req, res) => {
+  const data = req.body;
+  let identity;
+  let payload;
   try {
-    const data = req.body;
     if (!data.date || !data.officeEntryTime) return res.status(400).json({ message: 'Date and entry time required' });
-    
-    // Fetch employee to get employeeCode
-    const employee = await Employee.findOne({ username: req.user.username }).lean();
-    const employeeCode = req.user.employeeCode || employee?.employeeCode || '';
 
-    // Build the payload
-    const payload = {
+    identity = await resolveAttendanceIdentity(req);
+    if (!identity.employeeCode) {
+      return res.status(400).json({
+        message: 'Employee ID not found. Log out and sign in again using your Employee ID (e.g. 2424).',
+      });
+    }
+
+    payload = {
       date: data.date,
-      employeeId: req.user.id,
+      employeeId: identity.employeeId,
+      employeeCode: identity.employeeCode,
+      employeeUsername: identity.employeeCode,
       officeEntryTime: data.officeEntryTime,
       officeExitTime: data.officeExitTime || '',
       jobNumber: String(data.jobNumber || '').trim(),
@@ -131,14 +164,35 @@ export const logEmployeeAttendance = async (req, res) => {
 
     await enrichJobData(payload, payload.date, false);
 
-    // Upsert: update if exists, create if not — prevents E11000 duplicate key errors
-    const record = await EmployeeAttendance.findOneAndUpdate(
-      { date: data.date, employeeId: req.user.id },
-      { $set: payload },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
+    await ensureLegacyAttendanceIndexRemoved();
+    await repairAttendanceRowForIdentity(data.date, identity);
+
+    let record = await EmployeeAttendance.findOne(attendanceRecordFilter(data.date, identity));
+    if (record) {
+      record.set(payload);
+      await enrichJobData(record, record.date, true);
+      await record.save();
+    } else {
+      record = await EmployeeAttendance.create(payload);
+    }
     return res.json(docToObject(record));
   } catch (err) {
+    if (String(err.message || '').includes('E11000') && identity?.employeeCode && payload) {
+      try {
+        await ensureLegacyAttendanceIndexRemoved();
+        await repairAttendanceRowForIdentity(data.date, identity);
+        const record = await EmployeeAttendance.findOneAndUpdate(
+          attendanceRecordFilter(data.date, identity),
+          { $set: payload },
+          { new: true, upsert: true, setDefaultsOnInsert: true }
+        );
+        return res.json(docToObject(record));
+      } catch (retryErr) {
+        return res.status(500).json({
+          message: `${retryErr.message}. Backend restart ചെയ്ത് logout → Employee ID (2424) കൊണ്ട് login ചെയ്യുക.`,
+        });
+      }
+    }
     return res.status(500).json({ message: err.message });
   }
 };
@@ -149,8 +203,16 @@ export const logEmployeeAttendance = async (req, res) => {
 export const updateEmployeeAttendance = async (req, res) => {
   try {
     const data = req.body;
-    const current = await EmployeeAttendance.findOne({ date: data.date, employeeId: req.user.id });
+    const identity = await resolveAttendanceIdentity(req);
+    await ensureLegacyAttendanceIndexRemoved();
+    await repairAttendanceRowForIdentity(data.date, identity);
+    const current = await EmployeeAttendance.findOne(attendanceRecordFilter(data.date, identity));
     if (!current) return res.status(404).json({ message: 'Record not found' });
+
+    if (identity.employeeCode) {
+      current.employeeCode = identity.employeeCode;
+      current.employeeUsername = identity.employeeCode;
+    }
 
     // Update standard fields
     if (data.officeEntryTime !== undefined) current.officeEntryTime = data.officeEntryTime;
@@ -179,7 +241,8 @@ export const updateEmployeeAttendance = async (req, res) => {
 
 export const getEmployeeAttendanceByDate = async (req, res) => {
   try {
-    const record = await EmployeeAttendance.findOne({ date: req.params.date, employeeId: req.user.id });
+    const identity = await resolveAttendanceIdentity(req);
+    const record = await EmployeeAttendance.findOne(attendanceRecordFilter(req.params.date, identity));
     return res.json(docToObject(record));
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -188,7 +251,11 @@ export const getEmployeeAttendanceByDate = async (req, res) => {
 
 export const getEmployeeAttendanceHistory = async (req, res) => {
   try {
-    const records = await EmployeeAttendance.find({ employeeId: req.user.id }).sort({ date: -1 }).limit(30).lean();
+    const identity = await resolveAttendanceIdentity(req);
+    const records = await EmployeeAttendance.find(attendanceHistoryFilter(identity))
+      .sort({ date: -1 })
+      .limit(30)
+      .lean();
     return res.json(records.map(docToObject));
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -258,7 +325,7 @@ export const adminExportAttendance = async (req, res) => {
 
 export const enrichAttendanceWithSchedule = async (req, res) => {
   try {
-    const records = await EmployeeAttendance.find().lean();
+    const records = await EmployeeAttendance.find();
     let count = 0;
     for (const r of records) {
       // enrichJobData acts directly on the Mongoose document using .set()

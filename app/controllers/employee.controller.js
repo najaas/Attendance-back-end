@@ -1,5 +1,6 @@
 import Employee from '../models/employee.model.js';
 import User from '../models/user.model.js';
+import { attachUserIdsToEmployees } from '../utils/employeeResolver.js';
 import Task from '../models/task.model.js';
 import { getNextId, parseCSV } from '../utils/helpers.js';
 import EmployeeAttendance from '../models/employeeAttendance.model.js';
@@ -10,10 +11,12 @@ export const getEmployees = async (req, res) => {
     const lite = String(req.query?.lite || '').trim() === '1';
     if (lite) {
       res.set('Cache-Control', 'private, max-age=20');
-      const employees = await Employee.find({})
-        .sort({ id: 1 })
-        .select({ _id: 0, id: 1, name: 1, shortName: 1, username: 1, designation: 1, employeeCode: 1 })
-        .lean();
+      const employees = await attachUserIdsToEmployees(
+        await Employee.find({})
+          .sort({ id: 1 })
+          .select({ _id: 0, id: 1, name: 1, shortName: 1, username: 1, designation: 1, employeeCode: 1 })
+          .lean()
+      );
       return res.json(employees);
     }
 
@@ -29,13 +32,15 @@ export const getEmployees = async (req, res) => {
       },
       {
         $addFields: {
-          password: { $arrayElemAt: ['$user.password', 0] }
+          password: { $arrayElemAt: ['$user.password', 0] },
+          userId: { $arrayElemAt: ['$user.id', 0] },
         }
       },
       {
         $project: {
           _id: 0,
           id: 1,
+          userId: 1,
           name: 1,
           shortName: 1,
           username: 1,
@@ -48,7 +53,7 @@ export const getEmployees = async (req, res) => {
         }
       }
     ]);
-    return res.json(employees);
+    return res.json(await attachUserIdsToEmployees(employees));
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

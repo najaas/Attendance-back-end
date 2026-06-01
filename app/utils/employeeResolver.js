@@ -20,10 +20,21 @@ export const findEmployeeByUsername = async (username) => {
 };
 
 export const findEmployeesByIds = async (ids = []) => {
-  const list = [...new Set((ids || []).map((c) => Number(c)).filter(c => !isNaN(c)))];
-  if (list.length === 0) return [];
-  return Employee.find({ id: { $in: list } })
-    .select({ username: 1, name: 1, shortName: 1, employeeCode: 1 })
+  return findEmployeesFromAssignList(ids);
+};
+
+/** Resolve employees from Employee ID only (employeeCode, e.g. 2424). */
+export const findEmployeesFromAssignList = async (ids = []) => {
+  const tokens = [...new Set(
+    (Array.isArray(ids) ? ids : [ids])
+      .map((v) => String(v ?? '').trim())
+      .filter(Boolean)
+  )];
+  if (tokens.length === 0) return [];
+
+  const codeRegexes = tokens.map((t) => codeRegex(t));
+  return Employee.find({ employeeCode: { $in: codeRegexes } })
+    .select({ id: 1, username: 1, name: 1, shortName: 1, employeeCode: 1 })
     .lean();
 };
 
@@ -32,7 +43,7 @@ export const findEmployeesByCodes = async (codes = []) => {
   if (list.length === 0) return [];
   const regexes = list.map(c => codeRegex(c));
   return Employee.find({ employeeCode: { $in: regexes } })
-    .select({ username: 1, name: 1, shortName: 1, employeeCode: 1, pushTokens: 1 })
+    .select({ id: 1, username: 1, name: 1, shortName: 1, employeeCode: 1, pushTokens: 1 })
     .lean();
 };
 
@@ -58,6 +69,98 @@ export const resolveLoginUser = async (loginId) => {
   return { user, employee };
 };
 
-export const toAssigneePayload = (emp) => ({
-  employeeId: emp.id,
-});
+export const toAssigneePayload = (emp) => {
+  const employeeCode = String(emp?.employeeCode || '').trim();
+  const employeeId = Number(emp?.id);
+  return {
+    employeeCode,
+    employeeId: Number.isFinite(employeeId) ? employeeId : null,
+  };
+};
+
+const normKey = (value) => String(value || '').trim().toLowerCase();
+
+/** Attendance stores User.id as employeeId — attach userId for frontend lookups. */
+export async function attachUserIdsToEmployees(employees = []) {
+  if (!Array.isArray(employees) || employees.length === 0) return [];
+
+  const users = await User.find({}).select({ id: 1, username: 1 }).lean();
+  const userByKey = new Map();
+  for (const u of users) {
+    userByKey.set(normKey(u.username), u);
+  }
+
+  return employees.map((emp) => {
+    const user =
+      userByKey.get(normKey(emp.username)) ||
+      userByKey.get(normKey(emp.employeeCode));
+    return {
+      ...emp,
+      userId: user?.id ?? null,
+    };
+  });
+}
+
+/** Food/attendance: resolve staff by Employee ID (employeeCode) only. */
+export async function buildEmployeeResolverByEmployeeCode() {
+  const allEmployees = await Employee.find()
+    .select({ id: 1, name: 1, shortName: 1, employeeCode: 1, username: 1 })
+    .lean();
+
+  const byCode = new Map();
+  for (const e of allEmployees) {
+    const code = normKey(e.employeeCode);
+    if (code) byCode.set(code, e);
+  }
+
+  return (employeeCodeRef) => {
+    const code = normKey(String(employeeCodeRef || '').trim());
+    if (!code || code === '—') return null;
+    return byCode.get(code) || null;
+  };
+}
+
+/** @deprecated use buildEmployeeResolverByEmployeeCode */
+export const buildEmployeeResolverForAttendanceIds = buildEmployeeResolverByEmployeeCode;
+
+/** Display schedule row — Employee ID (code) first; legacy rows may only have internal Employee.id. */
+export async function resolveEmployeeForScheduleRow(schedule) {
+  const code = String(schedule?.assignedToEmployeeCode || '').trim();
+  if (code) {
+    const byCode = await findEmployeeByCode(code);
+    if (byCode) return byCode;
+  }
+  const ref = schedule?.assignedToEmployeeId;
+  if (ref == null || ref === '') return null;
+  const asNum = Number(ref);
+  if (Number.isFinite(asNum)) {
+    const byInternalId = await Employee.findOne({ id: asNum })
+      .select({ id: 1, name: 1, shortName: 1, employeeCode: 1, username: 1 })
+      .lean();
+    if (byInternalId) return byInternalId;
+  }
+  return findEmployeeByCode(String(ref).trim());
+}
+
+export async function resolveScheduleAssignees(assignMode, assignedToEmployeeIds) {
+  const mode = String(assignMode || '').trim();
+  if (!mode) return [];
+
+  if (mode === 'all') {
+    const employees = await Employee.find()
+      .sort({ id: 1 })
+      .select({ id: 1, username: 1, name: 1, shortName: 1, employeeCode: 1 })
+      .lean();
+    return employees.map(toAssigneePayload).filter((a) => a.employeeCode);
+  }
+
+  if (mode === 'multiple') {
+    const employees = await findEmployeesFromAssignList(assignedToEmployeeIds);
+    return employees.map(toAssigneePayload).filter((a) => a.employeeCode);
+  }
+
+  const emp = await findEmployeeByCode(mode);
+  if (!emp) return [];
+  const one = toAssigneePayload(emp);
+  return one.employeeCode ? [one] : [];
+}

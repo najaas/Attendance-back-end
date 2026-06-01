@@ -4,6 +4,9 @@ const employeeAttendanceSchema = new mongoose.Schema(
   {
     date: { type: String, required: true, index: true },
     employeeId: { type: Number, required: true, index: true },
+    employeeCode: { type: String, default: '', trim: true, index: true },
+    /** Legacy field — always set to same value as employeeCode (Employee ID). */
+    employeeUsername: { type: String, default: '', trim: true },
     officeEntryTime: { type: String, required: true, trim: true },
     officeExitTime: { type: String, default: '', trim: true },
     vehicle: { type: String, default: '', trim: true },
@@ -38,6 +41,13 @@ const employeeAttendanceSchema = new mongoose.Schema(
 );
 
 employeeAttendanceSchema.index({ date: 1, employeeId: 1 }, { unique: true });
+employeeAttendanceSchema.index(
+  { date: 1, employeeCode: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { employeeCode: { $type: 'string', $gt: '' } },
+  }
+);
 employeeAttendanceSchema.index({ date: -1, createdAt: -1 });
 employeeAttendanceSchema.index({ employeeId: 1, date: -1 });
 
