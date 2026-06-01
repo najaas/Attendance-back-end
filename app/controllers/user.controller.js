@@ -49,7 +49,7 @@ export const login = async (req, res) => {
       { id: user.id, username: user.username, role: user.role, name: user.name || user.username, shortName, designation, employeeCode },
       process.env.JWT_SECRET
     );
-    return res.json({ token, role: user.role, name: user.name || user.username, shortName, designation, employeeCode });
+    return res.json({ id: user.id, token, role: user.role, name: user.name || user.username, shortName, designation, employeeCode });
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ message: 'Login failed' });
@@ -110,6 +110,7 @@ export const getMe = async (req, res) => {
     }
     
     return res.json({ 
+      id: user.id,
       username: user.username, 
       role: user.role, 
       name: user.name, 

@@ -40,9 +40,7 @@ export const getSchedules = async (req, res) => {
         location: 1,
         site: 1,
         vehicle: 1,
-        assignedToUsername: 1,
-        assignedToName: 1,
-        assignedToEmployeeCode: 1,
+        assignedToEmployeeId: 1,
         status: 1,
         createdAt: 1,
       });
@@ -79,7 +77,7 @@ export const getAllSchedules = async (req, res) => {
 
 export const addSchedule = async (req, res) => {
   try {
-    const { title, description, taskDate, site, assignedTo, assignedToUsernames } = req.body;
+    const { title, description, taskDate, site, assignedTo, assignedToEmployeeIds } = req.body;
     const location = String(req.body?.location || req.body?.taskLocation || '').trim();
     const vehicle = String(req.body?.vehicle || '').trim();
     const officeTime = String(req.body?.officeTime || '').trim();
@@ -99,7 +97,7 @@ export const addSchedule = async (req, res) => {
       const employees = await Employee.find().sort({ id: 1 }).select({ username: 1, name: 1, shortName: 1, employeeCode: 1 }).lean();
       assignees = employees.map(toAssigneePayload);
     } else if (assignMode === 'multiple') {
-      const codes = Array.isArray(assignedToUsernames) ? assignedToUsernames : [];
+      const codes = Array.isArray(assignedToEmployeeIds) ? assignedToEmployeeIds : [];
       const employees = await findEmployeesByCodes(codes);
       if (employees.length === 0) return res.status(404).json({ message: 'No employees found for given IDs' });
       assignees = employees.map(toAssigneePayload);
@@ -119,11 +117,8 @@ export const addSchedule = async (req, res) => {
       location, site: (site || 'All Sites').trim(), vehicle,
       officeTime, siteTime,
       remarks,
-      assignedToUsername: a.username,
-      assignedToName: a.name,
-      assignedToShortName: a.shortName || '',
-      assignedToEmployeeCode: a.employeeCode || '',
-      assignedByUsername: req.user.username, status: 'pending', statusDate: taskDate || getLocalDateString()
+      assignedToEmployeeId: a.employeeId,
+      assignedByEmployeeId: req.user.id, status: 'pending', statusDate: taskDate || getLocalDateString()
     }));
 
     const created = await WorkSchedule.insertMany(docs);

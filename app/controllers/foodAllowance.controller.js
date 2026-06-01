@@ -60,26 +60,14 @@ export const getFoodReport = async (req, res) => {
       date: { $gte: from, $lte: to }
     }).lean();
 
-    // 3. Get all employees to map usernames to codes (case-insensitive & trimmed keys)
-    const employees = await Employee.find({}, 'username employeeCode').lean();
-    const codeMap = new Map();
-    employees.forEach(e => {
-        if (e.username) {
-            const cleanUser = String(e.username).trim().toLowerCase();
-            codeMap.set(cleanUser, e.employeeCode);
-        }
-    });
-
+    // 3. Remove employeeCode fetching since frontend will map by employeeId.
     const report = [];
     const overrideMap = new Map();
-    overrides.forEach(ov => overrideMap.set(`${ov.date}_${ov.employeeUsername}`, ov));
+    overrides.forEach(ov => overrideMap.set(`${ov.date}_${ov.employeeId}`, ov));
 
     // Process attendance records
     for (const att of attendanceRecords) {
-      const uKey = String(att.employeeUsername || "").trim().toLowerCase();
-      const employeeCode = codeMap.get(uKey) || "—";
-      
-      const key = `${att.date}_${att.employeeUsername}`;
+      const key = `${att.date}_${att.employeeId}`;
       const over = overrideMap.get(key);
 
       if (over) {
@@ -87,9 +75,7 @@ export const getFoodReport = async (req, res) => {
           _id: over._id,
           isManual: true,
           date: over.date,
-          employeeUsername: over.employeeUsername,
-          employeeCode,
-          employeeName: over.employeeName || att.employeeName,
+          employeeId: over.employeeId,
           jobNumber: over.jobNumber || att.site1JobNumber || att.jobNumber || "—",
           projectName: over.projectName || att.projectName || att.site1ProjectName || "—",
           breakfast: over.breakfast || 0,
@@ -165,9 +151,7 @@ export const getFoodReport = async (req, res) => {
         report.push({
           isManual: false,
           date: att.date,
-          employeeUsername: att.employeeUsername,
-          employeeCode,
-          employeeName: att.employeeName,
+          employeeId: att.employeeId,
           jobNumber: Array.from(jobNumbers).join(", ") || "—",
           projectName: Array.from(projects).join(", ") || "—",
           breakfast: b,
@@ -190,17 +174,11 @@ export const getFoodReport = async (req, res) => {
 
 export const updateFoodEntry = async (req, res) => {
   try {
-    const { date, employeeUsername, breakfast, lunch, dinner, advance, notes } = req.body;
-    let { employeeName } = req.body;
-    if(!employeeName) {
-        const emp = await Employee.findOne({ username: employeeUsername });
-        employeeName = emp ? emp.name : employeeUsername;
-    }
+    const { date, employeeId, breakfast, lunch, dinner, advance, notes } = req.body;
 
     const total = (breakfast || 0) + (lunch || 0) + (dinner || 0);
 
     const update = {
-      employeeName,
       breakfast: breakfast || 0,
       lunch: lunch || 0,
       dinner: dinner || 0,
@@ -211,7 +189,7 @@ export const updateFoodEntry = async (req, res) => {
     };
 
     const doc = await FoodAllowance.findOneAndUpdate(
-      { date, employeeUsername },
+      { date, employeeId },
       update,
       { upsert: true, new: true, returnDocument: 'after' }
     );

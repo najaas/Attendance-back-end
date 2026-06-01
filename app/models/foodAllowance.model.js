@@ -2,9 +2,7 @@ import mongoose from 'mongoose';
 
 const FoodAllowanceSchema = new mongoose.Schema({
   date: { type: String, required: true }, // YYYY-MM-DD
-  employeeUsername: { type: String, required: true },
-  employeeCode: { type: String, trim: true, default: '' },
-  employeeName: { type: String },
+  employeeId: { type: Number, required: true },
   jobNumber: { type: String },
   projectName: { type: String },
   breakfast: { type: Number, default: 0 },
@@ -16,7 +14,7 @@ const FoodAllowanceSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Index for quick queries
-FoodAllowanceSchema.index({ date: 1, employeeUsername: 1 }, { unique: true });
+FoodAllowanceSchema.index({ date: 1, employeeId: 1 }, { unique: true });
 
 const FoodAllowance = mongoose.model('FoodAllowance', FoodAllowanceSchema);
 export default FoodAllowance;

@@ -126,7 +126,7 @@ export const deleteEmployee = async (req, res) => {
     const emp = await Employee.findOneAndDelete({ id: employeeId }).lean();
     if (!emp) return res.status(404).json({ message: 'Not found' });
     await User.deleteOne({ username: emp.username });
-    await Task.deleteMany({ assignedToUsername: emp.username });
+    await Task.deleteMany({ assignedToEmployeeId: emp.id });
     return res.json({ message: 'Deleted' });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -221,9 +221,7 @@ export const importData = async (req, res) => {
         if (date && emp) {
           const payload = {
             date,
-            employeeUsername: emp.username,
-            employeeName: emp.name,
-            employeeCode: emp.employeeCode,
+            employeeId: emp.id,
             officeEntryTime: String(row['Office Entry'] || '').trim(),
             officeExitTime: String(row['Office Exit'] || '').trim(),
             jobNumber: String(row['Job No.'] || '').trim(),
@@ -231,7 +229,7 @@ export const importData = async (req, res) => {
           Object.keys(row).forEach((k) => {
             if (k.toLowerCase().includes('site')) payload[`site${k.replace(/\s+/g, '')}`] = row[k];
           });
-          await EmployeeAttendance.updateOne({ date, employeeUsername: emp.username }, { $set: payload }, { upsert: true });
+          await EmployeeAttendance.updateOne({ date, employeeId: emp.id }, { $set: payload }, { upsert: true });
           count++;
         }
       }
@@ -256,11 +254,8 @@ export const importData = async (req, res) => {
                     location: String(row.Location || '').trim(),
                     site: String(row.Site || 'All Sites').trim(),
                     vehicle: String(row['Vehicle No.'] || '').trim(),
-                    assignedToUsername: emp.username,
-                    assignedToName: emp.name,
-                    assignedToShortName: emp.shortName || '',
-                    assignedToEmployeeCode: emp.employeeCode || '',
-                    assignedByUsername: req.user.username,
+                    assignedToEmployeeId: emp.id,
+                    assignedByEmployeeId: req.user.id,
                     status: 'pending'
                 });
             }

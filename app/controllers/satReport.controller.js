@@ -96,8 +96,7 @@ export const submitReport = async (req, res) => {
       templateId,
       templateTitle,
       templateType: templateType || 'form',
-      employeeUsername: req.user.username,
-      employeeName: req.user.name || req.user.username,
+      employeeId: req.user.id,
       responses: responses || [],
       fileName: fileName || '',
       fileData: fileData || '',
@@ -140,7 +139,7 @@ export const downloadSubmission = async (req, res) => {
 // Get My Submissions (Employee)
 export const getMySubmissions = async (req, res) => {
   try {
-    const submissions = await SatReportSubmission.find({ employeeUsername: req.user.username }, '-fileData')
+    const submissions = await SatReportSubmission.find({ employeeId: req.user.id }, '-fileData')
       .sort({ createdAt: -1 }).lean();
     return res.json(submissions);
   } catch (error) {

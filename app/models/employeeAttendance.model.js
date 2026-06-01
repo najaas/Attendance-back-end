@@ -3,10 +3,7 @@ import mongoose from 'mongoose';
 const employeeAttendanceSchema = new mongoose.Schema(
   {
     date: { type: String, required: true, index: true },
-    employeeUsername: { type: String, required: true, trim: true, index: true },
-    employeeCode: { type: String, trim: true, default: '', index: true },
-    employeeName: { type: String, required: true, trim: true },
-    employeeShortName: { type: String, trim: true, default: '' },
+    employeeId: { type: Number, required: true, index: true },
     officeEntryTime: { type: String, required: true, trim: true },
     officeExitTime: { type: String, default: '', trim: true },
     vehicle: { type: String, default: '', trim: true },
@@ -40,8 +37,8 @@ const employeeAttendanceSchema = new mongoose.Schema(
   { strict: false, timestamps: true, versionKey: false }
 );
 
-employeeAttendanceSchema.index({ date: 1, employeeUsername: 1 }, { unique: true });
+employeeAttendanceSchema.index({ date: 1, employeeId: 1 }, { unique: true });
 employeeAttendanceSchema.index({ date: -1, createdAt: -1 });
-employeeAttendanceSchema.index({ employeeUsername: 1, date: -1 });
+employeeAttendanceSchema.index({ employeeId: 1, date: -1 });
 
 export default mongoose.model('EmployeeAttendance', employeeAttendanceSchema);

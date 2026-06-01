@@ -19,10 +19,10 @@ export const findEmployeeByUsername = async (username) => {
   return Employee.findOne({ username: usernameRegex(u) }).lean();
 };
 
-export const findEmployeesByCodes = async (codes = []) => {
-  const list = [...new Set((codes || []).map((c) => String(c).trim()).filter(Boolean))];
+export const findEmployeesByIds = async (ids = []) => {
+  const list = [...new Set((ids || []).map((c) => Number(c)).filter(c => !isNaN(c)))];
   if (list.length === 0) return [];
-  return Employee.find({ $or: list.map((c) => ({ employeeCode: codeRegex(c) })) })
+  return Employee.find({ id: { $in: list } })
     .select({ username: 1, name: 1, shortName: 1, employeeCode: 1 })
     .lean();
 };
@@ -50,8 +50,5 @@ export const resolveLoginUser = async (loginId) => {
 };
 
 export const toAssigneePayload = (emp) => ({
-  username: emp.username,
-  name: emp.name,
-  shortName: emp.shortName || '',
-  employeeCode: emp.employeeCode || '',
+  employeeId: emp.id,
 });

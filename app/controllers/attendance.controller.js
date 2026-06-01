@@ -114,9 +114,7 @@ export const logEmployeeAttendance = async (req, res) => {
     // Build the payload
     const payload = {
       date: data.date,
-      employeeUsername: req.user.username,
-      employeeName: employee?.name || req.user.name || req.user.username,
-      employeeCode,
+      employeeId: req.user.id,
       officeEntryTime: data.officeEntryTime,
       officeExitTime: data.officeExitTime || '',
       jobNumber: String(data.jobNumber || '').trim(),
@@ -135,7 +133,7 @@ export const logEmployeeAttendance = async (req, res) => {
 
     // Upsert: update if exists, create if not — prevents E11000 duplicate key errors
     const record = await EmployeeAttendance.findOneAndUpdate(
-      { date: data.date, employeeUsername: req.user.username },
+      { date: data.date, employeeId: req.user.id },
       { $set: payload },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
@@ -151,7 +149,7 @@ export const logEmployeeAttendance = async (req, res) => {
 export const updateEmployeeAttendance = async (req, res) => {
   try {
     const data = req.body;
-    const current = await EmployeeAttendance.findOne({ date: data.date, employeeUsername: req.user.username });
+    const current = await EmployeeAttendance.findOne({ date: data.date, employeeId: req.user.id });
     if (!current) return res.status(404).json({ message: 'Record not found' });
 
     // Update standard fields
@@ -181,7 +179,7 @@ export const updateEmployeeAttendance = async (req, res) => {
 
 export const getEmployeeAttendanceByDate = async (req, res) => {
   try {
-    const record = await EmployeeAttendance.findOne({ date: req.params.date, employeeUsername: req.user.username });
+    const record = await EmployeeAttendance.findOne({ date: req.params.date, employeeId: req.user.id });
     return res.json(docToObject(record));
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -190,7 +188,7 @@ export const getEmployeeAttendanceByDate = async (req, res) => {
 
 export const getEmployeeAttendanceHistory = async (req, res) => {
   try {
-    const records = await EmployeeAttendance.find({ employeeUsername: req.user.username }).sort({ date: -1 }).limit(30).lean();
+    const records = await EmployeeAttendance.find({ employeeId: req.user.id }).sort({ date: -1 }).limit(30).lean();
     return res.json(records.map(docToObject));
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -219,8 +217,7 @@ export const getAllEmployeeAttendance = async (req, res) => {
         _id: 1,
         id: 1,
         date: 1,
-        employeeUsername: 1,
-        employeeName: 1,
+        employeeId: 1,
         officeEntryTime: 1,
         officeExitTime: 1,
         projectName: 1,
@@ -328,7 +325,7 @@ export const clearRound = async (req, res) => {
     
     // Check if there's ANYTHING left
     const hasAnyKeys = Object.keys(updatedRecord.toObject()).some(k => {
-        if(['_id', 'id', 'employeeUsername', 'employeeName', 'date', 'createdAt', 'updatedAt', '__v'].includes(k)) return false;
+        if(['_id', 'id', 'employeeId', 'date', 'createdAt', 'updatedAt', '__v'].includes(k)) return false;
         const val = updatedRecord[k];
         if (val === null || val === undefined || val === "") return false;
         return true;

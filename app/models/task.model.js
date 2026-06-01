@@ -13,10 +13,8 @@ const taskSchema = new mongoose.Schema(
     location: { type: String, default: '', trim: true },
     site: { type: String, default: 'All Sites', trim: true },
     vehicle: { type: String, default: '', trim: true },
-    assignedToUsername: { type: String, required: true, trim: true, index: true },
-    assignedToName: { type: String, required: true, trim: true },
-    assignedToEmployeeCode: { type: String, trim: true, default: '' },
-    assignedByUsername: { type: String, required: true, trim: true },
+    assignedToEmployeeId: { type: Number, required: true, index: true },
+    assignedByEmployeeId: { type: Number, required: true },
     status: { type: String, enum: ['pending', 'completed'], default: 'pending', index: true },
     completionNote: { type: String, default: '', trim: true },
     adminNote: { type: String, default: '', trim: true },
@@ -27,7 +25,7 @@ const taskSchema = new mongoose.Schema(
 );
 
 taskSchema.index({ taskDate: 1, createdAt: -1 });
-taskSchema.index({ assignedToUsername: 1, taskDate: 1, createdAt: -1 });
+taskSchema.index({ assignedToEmployeeId: 1, taskDate: 1, createdAt: -1 });
 taskSchema.index({ status: 1, taskDate: 1 });
 
 export default mongoose.model('Task', taskSchema);

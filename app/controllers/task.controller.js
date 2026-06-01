@@ -10,7 +10,7 @@ export const getTasks = async (req, res) => {
     if (lite) res.set('Cache-Control', 'private, max-age=15');
     const limitNum = Number(req.query?.limit || 0);
     const limit = Number.isFinite(limitNum) ? Math.max(0, Math.min(limitNum, 2000)) : 0;
-    const query = req.user.role === 'admin' ? {} : { assignedToUsername: req.user.username };
+    const query = req.user.role === 'admin' ? {} : { assignedToEmployeeId: req.user.id };
     if (req.user.role === 'admin') {
       if (requestedDate) query.taskDate = requestedDate;
     } else {
@@ -27,9 +27,7 @@ export const getTasks = async (req, res) => {
         id: 1,
         status: 1,
         title: 1,
-        assignedToUsername: 1,
-        assignedToName: 1,
-        assignedToEmployeeCode: 1,
+        assignedToEmployeeId: 1,
         taskDate: 1,
       });
     }
@@ -43,7 +41,7 @@ export const getTasks = async (req, res) => {
 
 export const addTask = async (req, res) => {
   try {
-    const { title, description, taskDate, assignedTo, assignedToUsernames, adminNote } = req.body;
+    const { title, description, taskDate, assignedTo, assignedToEmployeeIds, adminNote } = req.body;
     const jobNumber = String(req.body?.jobNumber || req.body?.jobNo || '').trim();
     const projectName = String(req.body?.projectName || req.body?.project || '').trim();
     const customerName = String(req.body?.customerName || req.body?.customer || '').trim();
@@ -57,7 +55,7 @@ export const addTask = async (req, res) => {
       const employees = await Employee.find().sort({ id: 1 }).select({ username: 1, name: 1, employeeCode: 1 }).lean();
       assignees = employees.map(toAssigneePayload);
     } else if (assignMode === 'multiple') {
-      const codes = Array.isArray(assignedToUsernames) ? assignedToUsernames : [];
+      const codes = Array.isArray(assignedToEmployeeIds) ? assignedToEmployeeIds : [];
       const employees = await findEmployeesByCodes(codes);
       if (employees.length === 0) return res.status(404).json({ message: 'No employees found for given IDs' });
       assignees = employees.map(toAssigneePayload);
@@ -75,10 +73,8 @@ export const addTask = async (req, res) => {
       jobNumber, projectName, customerName,
       taskDate: taskDate || getLocalDateString(),
       adminNote: String(adminNote || '').trim(),
-      assignedToUsername: a.username,
-      assignedToName: a.name,
-      assignedToEmployeeCode: a.employeeCode || '',
-      assignedByUsername: req.user.username,
+      assignedToEmployeeId: a.employeeId,
+      assignedByEmployeeId: req.user.id,
       status: 'pending'
     }));
 
@@ -93,7 +89,7 @@ export const completeTask = async (req, res) => {
   try {
     if (req.user.role === 'admin') return res.status(403).json({ message: 'Only employees can complete tasks' });
     const taskId = Number(req.params.id);
-    const task = await Task.findOne({ id: taskId, assignedToUsername: req.user.username });
+    const task = await Task.findOne({ id: taskId, assignedToEmployeeId: req.user.id });
     if (!task) return res.status(404).json({ message: 'Task not found' });
     if (task.status === 'completed') return res.status(400).json({ message: 'Task already completed' });
 
@@ -154,7 +150,7 @@ export const deleteTask = async (req, res) => {
 export const updateTaskByEmployee = async (req, res) => {
   try {
     const taskId = Number(req.params.id);
-    const task = await Task.findOne({ id: taskId, assignedToUsername: req.user.username });
+    const task = await Task.findOne({ id: taskId, assignedToEmployeeId: req.user.id });
     if (!task) return res.status(404).json({ message: 'Task not found or unauthorized' });
 
     if (req.body.panelPhotosSent !== undefined) {
