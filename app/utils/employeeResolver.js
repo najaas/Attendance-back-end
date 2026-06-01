@@ -27,6 +27,15 @@ export const findEmployeesByIds = async (ids = []) => {
     .lean();
 };
 
+export const findEmployeesByCodes = async (codes = []) => {
+  const list = [...new Set((codes || []).map((c) => String(c || '').trim()).filter(Boolean))];
+  if (list.length === 0) return [];
+  const regexes = list.map(c => codeRegex(c));
+  return Employee.find({ employeeCode: { $in: regexes } })
+    .select({ username: 1, name: 1, shortName: 1, employeeCode: 1, pushTokens: 1 })
+    .lean();
+};
+
 /** Resolve login: Employee ID (employeeCode) or legacy username */
 export const resolveLoginUser = async (loginId) => {
   const id = String(loginId || '').trim();
