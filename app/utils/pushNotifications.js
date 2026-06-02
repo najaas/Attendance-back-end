@@ -103,12 +103,13 @@ const postJson = (url, payload) =>
 export const notifyScheduleAssigned = async ({ schedules = [] }) => {
   if (!Array.isArray(schedules) || schedules.length === 0) return { sent: 0 };
 
+  // Key by Employee ID (employeeCode) primarily; fall back to username for legacy rows.
   const byUser = new Map();
   schedules.forEach((row) => {
-    const username = String(row.assignedToUsername || '').trim();
-    if (!username) return;
-    if (!byUser.has(username)) byUser.set(username, []);
-    byUser.get(username).push(row);
+    const key = String(row.assignedToEmployeeCode || row.assignedToUsername || '').trim();
+    if (!key) return;
+    if (!byUser.has(key)) byUser.set(key, []);
+    byUser.get(key).push(row);
   });
 
   const users = Array.from(byUser.keys());
