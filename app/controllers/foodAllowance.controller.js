@@ -1,6 +1,8 @@
 import FoodAllowance from '../models/foodAllowance.model.js';
 import EmployeeAttendance from '../models/employeeAttendance.model.js';
 import WorkSchedule from '../models/workSchedule.model.js';
+import User from '../models/user.model.js';
+import Employee from '../models/employee.model.js';
 import {
   buildEmployeeResolverByEmployeeCode,
   findEmployeeByCode,
@@ -90,6 +92,26 @@ async function collectProjectsFromSchedule(att) {
   }
 
   return { projects, jobNumbers };
+}
+
+async function resolveEmployeeForLegacyRow(row) {
+  const code = cleanLabel(row?.employeeCode);
+  if (code) {
+    const emp = await findEmployeeByCode(code);
+    if (emp) return emp;
+  }
+
+  // Legacy food/attendance rows store login User.id in employeeId
+  const userId = Number(row?.employeeId);
+  if (!Number.isFinite(userId)) return null;
+
+  const user = await User.findOne({ id: userId }).select({ username: 1 }).lean();
+  if (!user?.username) return null;
+
+  const emp = await Employee.findOne({ username: user.username })
+    .select({ id: 1, name: 1, shortName: 1, employeeCode: 1, username: 1 })
+    .lean();
+  return emp || null;
 }
 
 // Constant thresholds
@@ -268,8 +290,15 @@ export const getFoodReport = async (req, res) => {
     const resolveEmp = await buildEmployeeResolverByEmployeeCode();
 
     const enriched = await Promise.all(report.map(async (row) => {
-      const codeRef = String(row.employeeCode || '').trim();
-      const emp = resolveEmp(codeRef);
+      let codeRef = String(row.employeeCode || '').trim();
+      let emp = codeRef ? resolveEmp(codeRef) : null;
+      if (!emp) {
+        const legacy = await resolveEmployeeForLegacyRow(row);
+        if (legacy?.employeeCode) {
+          codeRef = String(legacy.employeeCode).trim();
+          emp = legacy;
+        }
+      }
       const name = (emp?.shortName || emp?.name || '').trim();
       const code = (emp?.employeeCode || codeRef || '').trim();
 
