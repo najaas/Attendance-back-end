@@ -15,6 +15,7 @@ import foodAllowanceRoutes from './app/routes/foodAllowance.routes.js';
 import robotRoutes from './app/routes/robotRoutes.js';
 import fsrRoutes from './app/routes/fsr.routes.js';
 import satReportRoutes from './app/routes/satReport.routes.js';
+import materialReturnRoutes from './app/routes/materialReturn.routes.js';
 
 
 
@@ -26,17 +27,32 @@ const PORT = Number(process.env.PORT || 5001);
 // ----------------------
 // 🔒 SECURE CORS — whitelist only
 // ----------------------
-const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000')
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:8081',
+  'http://127.0.0.1:8081',
+  'http://localhost:19006',
+  'http://127.0.0.1:19006'
+];
+
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || DEFAULT_ALLOWED_ORIGINS.join(','))
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
+
+const isLocalDevOrigin = (origin = '') =>
+  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 
 app.use(cors({
   origin: function (origin, callback) {
     // allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    if (ALLOWED_ORIGINS.indexOf(origin) !== -1 || ALLOWED_ORIGINS.includes('*')) {
+    if (
+      ALLOWED_ORIGINS.indexOf(origin) !== -1 ||
+      ALLOWED_ORIGINS.includes('*') ||
+      isLocalDevOrigin(origin)
+    ) {
       callback(null, true);
     } else {
       console.warn(`⚠️ CORS blocked for: ${origin}`);
@@ -80,6 +96,7 @@ app.use('/api/food', foodAllowanceRoutes);
 app.use('/api/robot', robotRoutes);
 app.use('/api/fsr', fsrRoutes);
 app.use('/api/sat-reports', satReportRoutes);
+app.use('/api/material-returns', materialReturnRoutes);
 
 
 
