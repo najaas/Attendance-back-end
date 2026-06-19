@@ -8,6 +8,7 @@ const materialReturnSchema = new mongoose.Schema(
     date: { type: String, required: true, index: true }, // Format YYYY-MM-DD
     returnedBy: { type: String, required: true, index: true, trim: true }, // Employee username
     employeeName: { type: String, required: true, trim: true }, // Employee display name
+    employeeCode: { type: String, trim: true, default: '' }, // Employee ID (e.g. TEC-101)
     items: [
       {
         slNo: { type: String, default: '' },

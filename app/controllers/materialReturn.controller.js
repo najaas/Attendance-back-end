@@ -1,4 +1,5 @@
 import MaterialReturn from '../models/materialReturn.model.js';
+import Employee from '../models/employee.model.js';
 
 // Create a new material return
 export const createReturn = async (req, res) => {
@@ -8,6 +9,10 @@ export const createReturn = async (req, res) => {
     // Automatically set employee information from authenticated user session
     data.returnedBy = req.user.username;
     data.employeeName = req.user.name || req.user.username;
+
+    // Look up employee record to get the Employee ID (employeeCode)
+    const empRecord = await Employee.findOne({ username: req.user.username }).lean();
+    data.employeeCode = empRecord?.employeeCode || '';
     
     // Always default new returns to pending
     data.status = 'pending';
@@ -60,6 +65,8 @@ export const updateReturn = async (req, res) => {
     if (!isAdmin) {
       updateData.returnedBy = req.user.username;
       updateData.employeeName = req.user.name || req.user.username;
+      const empRecord = await Employee.findOne({ username: req.user.username }).lean();
+      updateData.employeeCode = empRecord?.employeeCode || existingReturn.employeeCode || '';
     }
 
     const updated = await MaterialReturn.findByIdAndUpdate(id, updateData, { new: true });

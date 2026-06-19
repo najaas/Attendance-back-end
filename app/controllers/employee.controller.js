@@ -101,7 +101,7 @@ export const addEmployee = async (req, res) => {
 export const updateEmployee = async (req, res) => {
   try {
     const employeeId = Number(req.params.id);
-    const { designation, name, shortName, companyNumber, personalNumber, indiaNumber } = req.body;
+    const { designation, name, shortName, username, companyNumber, personalNumber, indiaNumber } = req.body;
     const emp = await Employee.findOne({ id: employeeId });
     if (!emp) return res.status(404).json({ message: 'Not found' });
 
@@ -117,6 +117,16 @@ export const updateEmployee = async (req, res) => {
       emp.shortName = String(shortName).trim();
       await User.updateOne({ username: emp.username }, { shortName: emp.shortName });
     }
+    // Allow changing the login username — update User record first, then Employee
+    if (username !== undefined) {
+      const newUsername = String(username).trim();
+      if (newUsername && newUsername !== emp.username) {
+        const conflict = await User.findOne({ username: newUsername }).lean();
+        if (conflict) return res.status(400).json({ message: 'Username already taken by another account' });
+        await User.updateOne({ username: emp.username }, { username: newUsername });
+        emp.username = newUsername;
+      }
+    }
 
     await emp.save();
     return res.json({ id: emp.id, name: emp.name, shortName: emp.shortName, username: emp.username, employeeCode: emp.employeeCode, designation: emp.designation, companyNumber: emp.companyNumber, personalNumber: emp.personalNumber, indiaNumber: emp.indiaNumber });
@@ -124,6 +134,7 @@ export const updateEmployee = async (req, res) => {
     return res.status(500).json({ message: err.message });
   }
 };
+
 
 export const deleteEmployee = async (req, res) => {
   try {
