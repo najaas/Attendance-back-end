@@ -4,7 +4,6 @@ import { auth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Define material returns routes, protecting all with the authentication middleware
 router.post('/', auth, createReturn);
 router.get('/', auth, getReturns);
 router.put('/:id', auth, updateReturn);

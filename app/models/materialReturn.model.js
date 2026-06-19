@@ -11,6 +11,8 @@ const materialReturnSchema = new mongoose.Schema(
     items: [
       {
         slNo: { type: String, default: '' },
+        jobNo: { type: String, trim: true, default: '' },
+        panelRef: { type: String, trim: true, default: '' },
         description: { type: String, required: true, trim: true },
         qty: { type: String, required: true, trim: true },
         remarks: { type: String, trim: true, default: '' }
